@@ -6,6 +6,13 @@ KtOG is a simple dice-based combat game for 2 or more players created by Nate an
 
 # Change Log
 
+## v261007193211
+* Adds current HP in combat log (both for testing and clearer history)
+* AI opponents can't be color red so they can't be confused with damage rolls
+* Selecting four opponents is possible again for those who like punishment
+* Heal gets animation rolls
+* Major Fix: players can only cast one spell per round as per rules
+
 ## v261007065918
 
 * Add a reset button to re-initialize the game at the bottom of the combat log so users don't have to refresh the page to do that.

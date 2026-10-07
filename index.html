@@ -462,6 +462,7 @@
                 <option value="1">1 Opponent</option>
                 <option value="2">2 Opponents</option>
                 <option value="3">3 Opponents</option>
+                <option value="4">4 Opponents</option>
               </select>
             </div>
 
@@ -587,8 +588,8 @@
     let cleanMsg = msg.replace(/<br>/g, '').trim();
     if (cleanMsg === "") return;
 
-    if (cleanMsg.includes("'s Turn --") || cleanMsg.includes("Initiative Roll --")) {
-      if (currentBlockStr !== "") {
+    if (cleanMsg.includes(" hp --") || cleanMsg.includes("Initiative Roll --")) {
+        if (currentBlockStr !== "") {
         eventHistory.unshift(currentBlockStr);
       }
       currentBlockStr = `<div>${cleanMsg}</div>`;
@@ -671,7 +672,7 @@
   ];
 
   const brutalAiNames = ["Ghorza", "Urg", "Mugrub", "Orok", "Snaga", "Bolg", "Azog", "Lurtz", "Ugluk", "Grishnakh"];
-  const aiColors = ['#ff6b6b', '#feca57', '#ff9f43', '#54a0ff', '#5f27cd', '#ff9ff3', '#0abde3'];
+  const aiColors = ['#1dd1a1', '#feca57', '#ff9f43', '#54a0ff', '#5f27cd', '#ff9ff3', '#0abde3'];
   const playerColor = '#4af626';
 
   const generateAvatarBase64 = (seedStr, color) => {
@@ -687,6 +688,7 @@
 const initFighter = (color, startHp) => ({
     hp: startHp, armed: true, disarmTimer: 0, blessed: false, color: color, avatar: '',
     spells: { cure: 1, bless: 1, haste: 2, dodge: 1, mighty: 1 },
+    spellCastThisRound: false, // Enforces 1 spell per round logic
     lastAttacker: null, strategy: getRandEl(['lowestHP', 'random', 'revenge'])
   });
 
@@ -823,9 +825,10 @@ function startGame() {
       let el = document.getElementById(id);
       if(el) el.disabled = !en;
     });
-    if(p1.spells.cure <= 0) document.getElementById('btn-cure').disabled = true;
-    if(p1.spells.bless <= 0) document.getElementById('btn-bless').disabled = true;
-    if(p1.spells.haste <= 0) document.getElementById('btn-haste').disabled = true;
+    // Check both standard availability and if a spell was already cast this round
+    if(p1.spells.cure <= 0 || p1.spellCastThisRound) document.getElementById('btn-cure').disabled = true;
+    if(p1.spells.bless <= 0 || p1.spellCastThisRound) document.getElementById('btn-bless').disabled = true;
+    if(p1.spells.haste <= 0 || p1.spellCastThisRound) document.getElementById('btn-haste').disabled = true;
     updateUI();
   }
 
@@ -834,7 +837,10 @@ function startGame() {
     printLog('<br><span style="color:#fff;">-- Initiative Roll --</span>');
     await askUser("Roll a 100-sided die to determine the turn order. Ready?", true, "Roll!");
     if (!gameActive) return;
-    turnOrder.forEach(c => c.initRoll = roll(100));
+    turnOrder.forEach(c => {
+        c.initRoll = roll(100);
+        c.spellCastThisRound = false;
+    });
     turnOrder.sort((a, b) => b.initRoll - a.initRoll);
     enemies.sort((a, b) => b.initRoll - a.initRoll);
     document.getElementById('enemy-cards-container').innerHTML = '';
@@ -846,26 +852,36 @@ function startGame() {
   async function advanceTurn() {
     if (!gameActive || checkWin()) return;
     currentTurnIndex++;
-    if (currentTurnIndex >= turnOrder.length) { currentTurnIndex = 0; printLog('<br><span style="color:var(--text-dim);">-- New Round --</span>'); }
+    if (currentTurnIndex >= turnOrder.length) {
+        currentTurnIndex = 0;
+        turnOrder.forEach(c => c.spellCastThisRound = false); // Global Round Reset
+        printLog('<br><span style="color:var(--text-dim);">-- New Round --</span>');
+    }
     let activeChar = turnOrder[currentTurnIndex];
     if (activeChar.hp <= 0) { advanceTurn(); return; }
     updateUI();
     await new Promise(r => setTimeout(r, 800));
     if (!gameActive) return;
     if (activeChar.isPlayer) {
-      playerActionsLeft = 1; printLog(`<br><span style="color:#fff;">-- ${cName(activeChar)}'s Turn --</span>`); setButtonsEnabled(true);
+
+    playerActionsLeft = 1; printLog(`<br><span style="color:#fff;">-- ${cName(activeChar)} is at ${activeChar.hp} hp --</span>`); setButtonsEnabled(true);
+
     } else {
       await doAITurn(activeChar); await new Promise(r => setTimeout(r, 1200)); advanceTurn();
     }
   }
 
-  function applyCure(caster) {
+async function applyCure(caster) {
     let d = roll(10);
     let rollStr = `[d10: ${d}]`;
     while (d === 1) {
       d = roll(10);
       rollStr += ` ➔ rerolled 1 ➔ [d10: ${d}]`;
     }
+
+    await animateDice('', 10, d, '#4af626');
+    if (!gameActive) return;
+
     caster.hp += d;
     caster.spells.cure--;
     printLog(`> ${cName(caster)} casts <b>Cure</b>. Healed <b>${d}</b> HP ${rollStr}.`);
@@ -908,10 +924,10 @@ function startGame() {
       if (!isPunch && attacker.armed) { attacker.armed = false; attacker.disarmTimer = 2; printLog(`> Dropped weapon!`); }
     } else if (hitRoll >= req || isCrit) {
       let dodged = false;
-      if (defender.isPlayer && defender.spells.dodge > 0 && await askUser(`${attacker.name} hit! Cast Dodge? (${defender.spells.dodge} left)`)) {
-        defender.spells.dodge--; dodged = true; printLog(`> You cast <span style="color:#8ec5e8">DODGE</span>! Attack avoided.`);
-      } else if (!defender.isPlayer && defender.spells.dodge > 0 && (isCrit || defender.hp <= 12)) {
-        defender.spells.dodge--; dodged = true; printLog(`> ${cName(defender)} casts <span style="color:#8ec5e8">DODGE</span>!`);
+      if (defender.isPlayer && defender.spells.dodge > 0 && !defender.spellCastThisRound && await askUser(`${attacker.name} hit! Cast Dodge? (${defender.spells.dodge} left)`)) {
+        defender.spells.dodge--; defender.spellCastThisRound = true; dodged = true; printLog(`> You cast <span style="color:#8ec5e8">DODGE</span>! Attack avoided.`);
+      } else if (!defender.isPlayer && defender.spells.dodge > 0 && !defender.spellCastThisRound && (isCrit || defender.hp <= 12)) {
+        defender.spells.dodge--; defender.spellCastThisRound = true; dodged = true; printLog(`> ${cName(defender)} casts <span style="color:#8ec5e8">DODGE</span>!`);
       }
       if (!gameActive) return;
 
@@ -919,12 +935,14 @@ function startGame() {
         let isMighty = false;
 
         // Evaluate Mighty Blow BEFORE rolling damage
-        if (attacker.isPlayer && attacker.spells.mighty > 0 && await askUser(`Hit successful! Cast Mighty Blow?`)) {
+        if (attacker.isPlayer && attacker.spells.mighty > 0 && !attacker.spellCastThisRound && await askUser(`Hit successful! Cast Mighty Blow?`)) {
           attacker.spells.mighty--;
+          attacker.spellCastThisRound = true;
           isMighty = true;
           printLog(`> You cast <span style="color:#ff4d4d">MIGHTY BLOW</span>!`);
-        } else if (!attacker.isPlayer && attacker.spells.mighty > 0 && (isCrit || roll(3) === 1)) {
+        } else if (!attacker.isPlayer && attacker.spells.mighty > 0 && !attacker.spellCastThisRound && (isCrit || roll(3) === 1)) {
           attacker.spells.mighty--;
+          attacker.spellCastThisRound = true;
           isMighty = true;
           printLog(`> ${cName(attacker)} casts <span style="color:#ff4d4d">MIGHTY BLOW</span>!`);
         }
@@ -973,14 +991,38 @@ function startGame() {
 
   async function playerTurn(action) {
     if (!gameActive) return;
-    if (action === 'bless') { p1.spells.bless--; p1.blessed = true; printLog(`<br>${cName(p1)} casts <b>Bless</b>.`); updateUI(); return; }
+
+    if (['bless', 'haste', 'cure'].includes(action) && p1.spellCastThisRound) {
+        return; // Failsafe if forced
+    }
+
+    if (action === 'bless') {
+        p1.spells.bless--;
+        p1.blessed = true;
+        p1.spellCastThisRound = true;
+        printLog(`<br>${cName(p1)} casts <b>Bless</b>.`);
+        setButtonsEnabled(true);
+        return;
+    }
+
     setButtonsEnabled(false);
-    if (action === 'haste') { p1.spells.haste--; playerActionsLeft += (playerActionsLeft === 0 ? 2 : 1); printLog(`${cName(p1)} casts <b>Haste</b>!`); setButtonsEnabled(true); return; }
+
+    if (action === 'haste') {
+        p1.spells.haste--;
+        p1.spellCastThisRound = true;
+        playerActionsLeft += (playerActionsLeft === 0 ? 2 : 1);
+        printLog(`${cName(p1)} casts <b>Haste</b>!`);
+        setButtonsEnabled(true);
+        return;
+    }
 
     if (playerActionsLeft === 0) playerActionsLeft = 1;
     const targetEnemy = enemies[document.getElementById('target-select').value];
 
-    if (action === 'cure') { applyCure(p1); }
+    if (action === 'cure') {
+        p1.spellCastThisRound = true;
+        await applyCure(p1);
+    }
     else if (action === 'attack') {
       if (!p1.armed) {
         let confirmPunch = await askUser("you're currently disarmed, are you sure you want to attack bare handed?");
@@ -1018,7 +1060,7 @@ function startGame() {
 
   async function doAITurn(ai) {
     if (!gameActive) return;
-    printLog(`<br><span style="color:#fff;">-- ${cName(ai)}'s Turn --</span>`);
+    printLog(`<br><span style="color:#fff;">-- ${cName(ai)} is at ${ai.hp} hp --</span>`);
 
     let targets = turnOrder.filter(c => c.hp > 0 && c !== ai);
     if (targets.length === 0) { checkWin(); return; }
@@ -1045,24 +1087,30 @@ function startGame() {
     }
 
     let acts = 1;
-    if (ai.spells.haste > 0 && (ai.hp <= 14 || !ai.armed)) {
-      ai.spells.haste--; acts = 2; printLog(`${cName(ai)} casts <b>Haste</b>!`);
+    if (ai.spells.haste > 0 && !ai.spellCastThisRound && (ai.hp <= 14 || !ai.armed)) {
+      ai.spells.haste--; ai.spellCastThisRound = true; acts = 2; printLog(`${cName(ai)} casts <b>Haste</b>!`);
     }
 
     while (acts > 0 && gameActive && ai.hp > 0) {
-      if (ai.spells.bless > 0 && roll(3)===1 && !ai.blessed) {
-        ai.spells.bless--; ai.blessed = true; printLog(`${cName(ai)} casts <b>Bless</b>.`);
+      if (ai.spells.bless > 0 && !ai.spellCastThisRound && roll(3)===1 && !ai.blessed) {
+        ai.spells.bless--; ai.blessed = true; ai.spellCastThisRound = true; printLog(`${cName(ai)} casts <b>Bless</b>.`);
       }
 
       if (!ai.armed) {
-        if (ai.hp <= 12 && ai.spells.cure > 0) { applyCure(ai); }
+        if (ai.hp <= 12 && ai.spells.cure > 0 && !ai.spellCastThisRound) {
+            ai.spellCastThisRound = true;
+            await applyCure(ai);
+        }
         else if (roll(3)===1) await resolveAttack(ai, target, true);
         else {
           ai.disarmTimer--; printLog(`${cName(ai)} scrambles for its weapon.`);
           if (ai.disarmTimer <= 0) { ai.armed = true; printLog(`> ${cName(ai)} recovered its weapon!`); }
         }
       } else {
-        if (ai.hp <= 10 && ai.spells.cure > 0) { applyCure(ai); }
+        if (ai.hp <= 10 && ai.spells.cure > 0 && !ai.spellCastThisRound) {
+            ai.spellCastThisRound = true;
+            await applyCure(ai);
+        }
         else if (target.armed && roll(5)===1) {
           printLog(`> ${cName(ai)} attempts to disarm ${cName(target)}!`);
           let hr = roll(20), req = ai.blessed ? 16 : 17; ai.blessed = false;
