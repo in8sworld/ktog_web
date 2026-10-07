@@ -158,11 +158,11 @@
     }
 
     @media screen and (max-width: 768px) {
-    main {
+      main {
         margin-left: 0;
         padding-left: 0;
+      }
     }
-}
 
     .page-section { display: none; animation: fadeIn 0.4s ease; }
     .page-section.active { display: block; }
@@ -288,13 +288,22 @@
     .spells:hover:not(:disabled) { background: #4a759c; color: #fff; }
 
     #game-log {
-      height: 620px; overflow-y: auto; background: #020203; color: #d0c2a8;
+      height: 560px; overflow-y: auto; background: #020203; color: #d0c2a8;
       padding: 15px; font-family: 'Courier New', Courier, monospace;
       border: 1px solid var(--border-gold); font-size: 1rem; line-height: 1.5;
     }
     #game-log div { margin-bottom: 8px; }
     .status-line, .counter-line { font-family: var(--font-body); font-size: 1.1rem; color: var(--text-dim); }
     .status-disarmed { color: #ff4d4d; font-weight: bold; }
+
+    #reset-btn {
+      width: 100%;
+      margin-top: 12px;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      border-color: var(--border-gold);
+      color: var(--text-main);
+    }
 
     #ktog-modal {
       display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -351,7 +360,7 @@
 
 <hr />
 <h3>Original Official Rules</h3>
-    <img align="right" src="https://ktog.in8sworld.net/20-sided.gif" alt="d20" id="attack die">
+    <img align="right" src="https://ktog.in8sworld.net/20-sided.png" alt="d20" id="attack die">
 
 <p><em>KtOG is a simple dice-based combat game for 2 or more players created by Nate and his friends in the 1980s. You can read some more about the history of KtOG on the <a href="javascript:void(0)" onclick="showPage('lore')">The Fighters</a> page. In the game, each player attempts to &#8216;Kill the Other Guy(s)&#8217; by &#8216;rolling to hit&#8217; (using a 20 sided die), &#8216;doing damage&#8217; (using a 6 sided die), and employing the various skills and spells at opportune times to win the game by reducing all other players to 0 &#8216;hit points&#8217;. A handy printable <a href="https://docs.google.com/document/d/1y3kNz5iWNgbRapp1Q9PQwErCLCbVDkiPTeUFb5Kymp8/edit?tab=t.0">game sheet</a> is available. </em></p>
 <p><strong>CORE RULES</strong></p>
@@ -448,13 +457,23 @@
               </select>
             </div>
             <div class="setup-row">
-              <label for="ai-count">Opposing Gladiators:</label>
+              <label for="ai-count">Opposing Pitfighters:</label>
               <select id="ai-count">
                 <option value="1">1 Opponent</option>
                 <option value="2">2 Opponents</option>
                 <option value="3">3 Opponents</option>
               </select>
             </div>
+
+            <div class="setup-row">
+              <label for="starting-hp">Game Length (Hit Points):</label>
+              <select id="starting-hp">
+                <option value="15">Short (15 HP)</option>
+                <option value="20">Medium (20 HP)</option>
+                <option value="25" selected>Long (25 HP)</option>
+              </select>
+            </div>
+
           </div>
           <br>
           <button id="start-btn" onclick="startGame()">Descend into the Pit</button>
@@ -508,6 +527,7 @@
               <button id="toggle-log-btn" onclick="toggleLog()" style="font-size:0.8rem; padding: 4px 10px;">Show History</button>
             </div>
             <div id="game-log"></div>
+            <button id="reset-btn" onclick="resetGame()">Reset Game</button>
           </div>
 
       </div>
@@ -664,8 +684,8 @@
     return `data:image/svg+xml;base64,${btoa(svg)}`;
   };
 
-  const initFighter = (color) => ({
-    hp: 25, armed: true, disarmTimer: 0, blessed: false, color: color, avatar: '',
+const initFighter = (color, startHp) => ({
+    hp: startHp, armed: true, disarmTimer: 0, blessed: false, color: color, avatar: '',
     spells: { cure: 1, bless: 1, haste: 2, dodge: 1, mighty: 1 },
     lastAttacker: null, strategy: getRandEl(['lowestHP', 'random', 'revenge'])
   });
@@ -691,9 +711,11 @@
     });
   }
 
-  function startGame() {
+function startGame() {
     const aiCount = parseInt(document.getElementById('ai-count').value);
-    p1 = initFighter(playerColor);
+    const startingHp = parseInt(document.getElementById('starting-hp').value); // Get selected HP
+
+    p1 = initFighter(playerColor, startingHp); // Pass startingHp
     p1.isPlayer = true;
     p1.name = document.getElementById('player-name').value;
     p1.avatar = generateAvatarBase64(p1.name, p1.color);
@@ -709,7 +731,7 @@
     let availableColors = [...aiColors].sort(() => 0.5 - Math.random());
 
     for (let i = 0; i < aiCount; i++) {
-      let e = initFighter(availableColors[i % availableColors.length]);
+      let e = initFighter(availableColors[i % availableColors.length], startingHp); // Pass startingHp
       e.isPlayer = false; e.name = availableAiNames.pop();
       e.avatar = generateAvatarBase64(e.name, e.color);
       enemies.push(e);
@@ -726,6 +748,25 @@
     printLog("The crowd roars. Combatants enter the pit...");
     updateUI();
     determineInitiative();
+  }
+
+  function resetGame() {
+    gameActive = false;
+    currentTurnIndex = -1;
+    playerActionsLeft = 0;
+    enemies = [];
+    turnOrder = [];
+    eventHistory = [];
+    currentBlockStr = "";
+
+    const modal = document.getElementById('ktog-modal');
+    if (modal) modal.style.display = 'none';
+
+    document.getElementById('game-board').style.display = 'none';
+    document.getElementById('splash-screen').style.display = 'block';
+
+    document.getElementById('game-log').innerHTML = '';
+    document.getElementById('enemy-cards-container').innerHTML = '';
   }
 
   function updateUI() {
@@ -792,6 +833,7 @@
     setButtonsEnabled(false);
     printLog('<br><span style="color:#fff;">-- Initiative Roll --</span>');
     await askUser("Roll a 100-sided die to determine the turn order. Ready?", true, "Roll!");
+    if (!gameActive) return;
     turnOrder.forEach(c => c.initRoll = roll(100));
     turnOrder.sort((a, b) => b.initRoll - a.initRoll);
     enemies.sort((a, b) => b.initRoll - a.initRoll);
@@ -802,13 +844,14 @@
   }
 
   async function advanceTurn() {
-    if (checkWin()) return;
+    if (!gameActive || checkWin()) return;
     currentTurnIndex++;
     if (currentTurnIndex >= turnOrder.length) { currentTurnIndex = 0; printLog('<br><span style="color:var(--text-dim);">-- New Round --</span>'); }
     let activeChar = turnOrder[currentTurnIndex];
     if (activeChar.hp <= 0) { advanceTurn(); return; }
     updateUI();
     await new Promise(r => setTimeout(r, 800));
+    if (!gameActive) return;
     if (activeChar.isPlayer) {
       playerActionsLeft = 1; printLog(`<br><span style="color:#fff;">-- ${cName(activeChar)}'s Turn --</span>`); setButtonsEnabled(true);
     } else {
@@ -828,7 +871,7 @@
     printLog(`> ${cName(caster)} casts <b>Cure</b>. Healed <b>${d}</b> HP ${rollStr}.`);
   }
 
-async function resolveAttack(attacker, defender, isPunch) {
+  async function resolveAttack(attacker, defender, isPunch) {
     const weaponAttacks = [
       "swings their weapon heavily at",
       "lunges aggressively towards",
@@ -854,9 +897,11 @@ async function resolveAttack(attacker, defender, isPunch) {
     if(attacker.blessed) attacker.blessed = false;
 
     await animateDice('', 20, hitRoll, attacker.color);
+    if (!gameActive) return;
 
     printLog(`> ${cName(attacker)} rolled a <b>${hitRoll}</b> [d20]. (Needed ${req}+)`);
     await new Promise(r => setTimeout(r, 800));
+    if (!gameActive) return;
 
     if (isFumble) {
       printLog(`<span style="color:#ff4d4d">> Critical Miss!</span> ${cName(attacker)} fumbled!`);
@@ -868,6 +913,7 @@ async function resolveAttack(attacker, defender, isPunch) {
       } else if (!defender.isPlayer && defender.spells.dodge > 0 && (isCrit || defender.hp <= 12)) {
         defender.spells.dodge--; dodged = true; printLog(`> ${cName(defender)} casts <span style="color:#8ec5e8">DODGE</span>!`);
       }
+      if (!gameActive) return;
 
       if (!dodged) {
         let isMighty = false;
@@ -882,6 +928,7 @@ async function resolveAttack(attacker, defender, isPunch) {
           isMighty = true;
           printLog(`> ${cName(attacker)} casts <span style="color:#ff4d4d">MIGHTY BLOW</span>!`);
         }
+        if (!gameActive) return;
 
         let dmg = 0;
         let rollText = "";
@@ -893,8 +940,10 @@ async function resolveAttack(attacker, defender, isPunch) {
           rollText = `[2d6: ${d1} + ${d2}]`;
           printLog(`> <b>NATURAL 20!</b> Critical Hit!`);
           await new Promise(r => setTimeout(r, 800));
+          if (!gameActive) return;
 
           await animateDice('', 12, dmg, '#ff4d4d');
+          if (!gameActive) return;
         } else {
           let d1 = roll(6);
           if (isPunch) {
@@ -906,6 +955,7 @@ async function resolveAttack(attacker, defender, isPunch) {
           }
 
           await animateDice('', 6, dmg, '#ff4d4d');
+          if (!gameActive) return;
         }
 
         // Apply Mighty Blow multiplier after the raw roll is determined
@@ -934,7 +984,7 @@ async function resolveAttack(attacker, defender, isPunch) {
     else if (action === 'attack') {
       if (!p1.armed) {
         let confirmPunch = await askUser("you're currently disarmed, are you sure you want to attack bare handed?");
-        if (!confirmPunch) {
+        if (!confirmPunch || !gameActive) {
           setButtonsEnabled(true);
           return;
         }
@@ -948,6 +998,7 @@ async function resolveAttack(attacker, defender, isPunch) {
       let hr = roll(20), req = p1.blessed ? 16 : 17; p1.blessed = false;
 
       await animateDice('', 20, hr, p1.color);
+      if (!gameActive) return;
 
       printLog(`> Rolled <b>${hr}</b> (Needed ${req}+)`);
       if (hr >= req) { targetEnemy.armed = false; targetEnemy.disarmTimer = 2; printLog(`> <span style="color:#ffcc00">SUCCESS!</span> Weapon knocked away!`); }
@@ -958,6 +1009,7 @@ async function resolveAttack(attacker, defender, isPunch) {
       if (p1.disarmTimer <= 0) { p1.armed = true; printLog(`> <span style="color:#4af626">Weapon recovered!</span>`); }
     }
 
+    if (!gameActive) return;
     playerActionsLeft--; updateUI();
     if (checkWin()) return;
     if (playerActionsLeft > 0) { setButtonsEnabled(true); return; }
@@ -979,7 +1031,6 @@ async function resolveAttack(attacker, defender, isPunch) {
         target = ai.lastAttacker;
 
         if (typeof revengeAnnouncements !== 'undefined' && revengeAnnouncements.length > 0 && roll(2) === 1) {
-          // Replaces {target} with the formatted target name
           let announcement = getRandEl(revengeAnnouncements).replace('{target}', cName(target));
           printLog(`<span style="color:#ffcc00; font-style: italic;">"${announcement}"</span>`);
         }
@@ -987,7 +1038,6 @@ async function resolveAttack(attacker, defender, isPunch) {
         target = getRandEl(targets);
 
         if (typeof standardAnnouncements !== 'undefined' && standardAnnouncements.length > 0 && roll(4) === 1) {
-          // Replaces {target} with the formatted target name
           let announcement = getRandEl(standardAnnouncements).replace('{target}', cName(target));
           printLog(`<span style="color:#a8d5ff; font-style: italic;">"${announcement}"</span>`);
         }
@@ -1018,6 +1068,7 @@ async function resolveAttack(attacker, defender, isPunch) {
           let hr = roll(20), req = ai.blessed ? 16 : 17; ai.blessed = false;
 
           await animateDice('', 20, hr, ai.color);
+          if (!gameActive) return;
 
           if (hr >= req) {
             target.armed = false; target.disarmTimer = 2;
@@ -1029,6 +1080,7 @@ async function resolveAttack(attacker, defender, isPunch) {
         }
       }
 
+      if (!gameActive) return;
       acts--;
       updateUI();
       if(checkWin()) return;
@@ -1066,7 +1118,6 @@ async function resolveAttack(attacker, defender, isPunch) {
 
   document.getElementById('version-number').textContent = `v${yy}${mm}${dd}${hh}${min}${ss}`;
 </script>
-
 
 </body>
 </html>
