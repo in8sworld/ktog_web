@@ -854,11 +854,11 @@ const updateLogFades = () => {
   };
 
 const initFighter = (color, startHp) => ({
-    hp: startHp, armed: true, disarmTimer: 0, blessed: false, color: color, avatar: '',
+    hp: startHp, maxHp: startHp, armed: true, disarmTimer: 0, blessed: false, color: color, avatar: '',
     spells: { cure: 1, bless: 1, haste: 2, dodge: 1, mighty: 1 },
     spellCastThisRound: false, // Enforces 1 spell per round logic
     lastAttacker: null, strategy: getRandEl(['lowestHP', 'random', 'revenge'])
-  });
+});
 
   const cName = (f) => `<span style="color:${f.color}; font-weight:bold;">${f.name}</span>`;
 
@@ -1060,9 +1060,17 @@ async function applyCure(caster) {
     await animateDice('', 10, d, '#4af626');
     if (!gameActive) return;
 
-    caster.hp += d;
+    // Calculate actual healing ensuring it doesn't exceed maxHp
+    let actualHeal = d;
+    if (caster.hp + d > caster.maxHp) {
+        actualHeal = caster.maxHp - caster.hp;
+        caster.hp = caster.maxHp;
+    } else {
+        caster.hp += d;
+    }
+
     caster.spells.cure--;
-    printLog(`> ${cName(caster)} casts <b>Cure</b>. Healed <b>${d}</b> HP ${rollStr}.`);
+    printLog(`> ${cName(caster)} casts <b>Cure</b>. Healed <b>${actualHeal}</b> HP ${rollStr}.`);
 }
 
 async function resolveAttack(attacker, defender, isPunch) {
@@ -1219,9 +1227,18 @@ async function resolveAttack(attacker, defender, isPunch) {
     if (playerActionsLeft === 0) playerActionsLeft = 1;
     const targetEnemy = enemies[document.getElementById('target-select').value];
 
-    if (action === 'cure') {
+if (action === 'cure') {
+        // If the user has taken less than 10 damage, warn them before casting
+        if (p1.hp > p1.maxHp - 10) {
+            let confirmCure = await askUser("Cure can only heal up to max hit points, are you sure?");
+            if (!confirmCure || !gameActive) {
+                setButtonsEnabled(true);
+                return;
+            }
+        }
+
         p1.spellCastThisRound = true;
-        await applyCure(p1); // playSound('cure') is handled inside applyCure
+        await applyCure(p1);
     }
     else if (action === 'attack') {
       if (!p1.armed) {
