@@ -287,14 +287,71 @@
     .spells { border-color: #4a759c; color: #8ec5e8; }
     .spells:hover:not(:disabled) { background: #4a759c; color: #fff; }
 
-    #game-log {
-      height: 560px; overflow-y: auto; background: #020203; color: #d0c2a8;
-      padding: 15px; font-family: 'Courier New', Courier, monospace;
-      border: 1px solid var(--border-gold); font-size: 1rem; line-height: 1.5;
-    }
-    #game-log div { margin-bottom: 8px; }
-    .status-line, .counter-line { font-family: var(--font-body); font-size: 1.1rem; color: var(--text-dim); }
-    .status-disarmed { color: #ff4d4d; font-weight: bold; }
+    .status-disarmed {
+  color: #ff4d4d; /* Matches your existing warning/hp red */
+  font-style: italic;
+  font-weight: bold;
+}
+
+/* Update the existing #game-log container */
+#game-log {
+  height: 560px;
+  overflow-y: hidden; /* Hide scrollbar during normal combat */
+  background: #020203;
+  color: #d0c2a8;
+  padding: 15px;
+  font-family: 'Courier New', Courier, monospace;
+  border: 1px solid var(--border-gold);
+  font-size: 1rem;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+}
+
+/* When history is open, allow scrolling */
+#game-log.show-history {
+  overflow-y: auto;
+}
+
+/* Base class for all log lines */
+.log-entry {
+  transition: all 0.4s ease-out;
+  opacity: 1;
+  font-weight: bold;
+  color: var(--text-main);
+  margin-bottom: 8px;
+  /* Start slightly compressed/shifted for the entrance animation */
+  animation: slideDown 0.3s forwards;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Fade states */
+.log-fade-1 {
+  font-weight: normal;
+  opacity: 0.85;
+  color: var(--text-dim);
+}
+
+.log-fade-2 {
+  font-weight: normal;
+  opacity: 0.4;
+  color: var(--text-dim);
+}
+
+.log-hidden {
+  opacity: 0;
+  display: none;
+}
+
+/* Override hidden state when history is toggled */
+.show-history .log-hidden {
+  display: block;
+  opacity: 0.3;
+}
 
     #reset-btn {
       width: 100%;
@@ -409,7 +466,7 @@
 </div>
 </section>
 
-    <!-- PAGE 3: LORE / HISTORY (Hidden from top nav, accessible via footer) -->
+    <!-- PAGE 3: LORE / HISTORY -->
     <section id="page-lore" class="page-section">
       <h2>The Roster of the Damned</h2>
       <div class="prose two-col">
@@ -539,9 +596,9 @@
     <div class="footer-links">
     </div>
     <div>Kill the Other Guy &copy; in8sworld.net</div>
-
+    <a href="https://github.com/in8sworld/ktog_web">
     <span id="version-number"></span>
-
+    </a>
   </footer>
 </div>
 
@@ -577,42 +634,58 @@
   let currentBlockStr = "";
   let isLogExpanded = false;
 
-  function toggleLog() {
-    isLogExpanded = !isLogExpanded;
-    let toggleBtn = document.getElementById('toggle-log-btn');
-    if(toggleBtn) toggleBtn.innerText = isLogExpanded ? "Hide History" : "Show History";
-    renderLog();
+function toggleLog() {
+  isLogExpanded = !isLogExpanded;
+  let toggleBtn = document.getElementById('toggle-log-btn');
+  if (toggleBtn) toggleBtn.innerText = isLogExpanded ? "Hide History" : "Show History";
+
+  // Toggle the CSS class that reveals hidden lines and enables scrolling
+  if (isLogExpanded) {
+    logDiv.classList.add('show-history');
+  } else {
+    logDiv.classList.remove('show-history');
+    logDiv.scrollTop = 0; // Snap back to top when closing history
   }
+}
 
-  const printLog = (msg) => {
-    let cleanMsg = msg.replace(/<br>/g, '').trim();
-    if (cleanMsg === "") return;
+const printLog = (msg) => {
+  let cleanMsg = msg.replace(/<br>/g, '').trim();
+  if (cleanMsg === "") return;
 
-    if (cleanMsg.includes(" hp --") || cleanMsg.includes("Initiative Roll --")) {
-        if (currentBlockStr !== "") {
-        eventHistory.unshift(currentBlockStr);
-      }
-      currentBlockStr = `<div>${cleanMsg}</div>`;
+  // 1. Create the new log element
+  const newLogLine = document.createElement('div');
+  newLogLine.className = 'log-entry'; // Starts bold and fully visible
+  newLogLine.innerHTML = cleanMsg;
+
+  // 2. Prepend it to the top of the container
+  logDiv.prepend(newLogLine);
+
+  // 3. Update the fade states of all previous lines
+  updateLogFades();
+};
+
+const updateLogFades = () => {
+  const lines = Array.from(logDiv.children);
+
+  // Determine how many lines to show based on enemy count (like your original logic)
+  let visibleLimit = (enemies && enemies.length > 0) ? (enemies.length * 3) + 2 : 5;
+
+  lines.forEach((line, index) => {
+    // Reset base classes to prevent stacking old fade classes
+    line.className = 'log-entry';
+
+    if (index === 0) {
+      // Newest line: stays bold (default .log-entry style)
+    } else if (index < visibleLimit / 2) {
+      line.classList.add('log-fade-1'); // Slightly dimmed, normal weight
+    } else if (index < visibleLimit) {
+      line.classList.add('log-fade-2'); // Heavily dimmed
     } else {
-      if (currentBlockStr === "") currentBlockStr = "<div></div>";
-      currentBlockStr += `<div>${cleanMsg}</div>`;
+      line.classList.add('log-hidden'); // Hidden completely (unless history is open)
     }
-    renderLog();
-  };
+  });
+};
 
-  const renderLog = () => {
-    let totalVisibleBlocks = (enemies && enemies.length > 0) ? enemies.length + 1 : 2;
-    let pastVisibleCount = isLogExpanded ? eventHistory.length : Math.max(0, totalVisibleBlocks - 1);
-
-    let html = `<div class="log-block current-block" style="font-weight: bold; color: var(--text-main); margin-bottom: 12px;">${currentBlockStr}</div>`;
-
-    for(let i = 0; i < pastVisibleCount && i < eventHistory.length; i++) {
-      html += `<div class="log-block past-block" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-gold); opacity: 0.75;">${eventHistory[i]}</div>`;
-    }
-
-    logDiv.innerHTML = html;
-    logDiv.scrollTop = 0;
-  };
 
   let gameActive = false;
   let p1;
@@ -769,6 +842,8 @@ function startGame() {
 
     document.getElementById('game-log').innerHTML = '';
     document.getElementById('enemy-cards-container').innerHTML = '';
+
+    logDiv.classList.remove('show-history');
   }
 
   function updateUI() {
