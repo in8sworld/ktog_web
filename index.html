@@ -637,6 +637,33 @@
       }
   }
 
+// Define sound library and file paths
+const sfx = {
+    bless: new Audio('sounds/bless.ogg'),
+    cure: new Audio('sounds/cure.ogg'),
+    disarmed: new Audio('sounds/disarmed.ogg'),
+    dodge: new Audio('sounds/dodge.ogg'),
+    haste: new Audio('sounds/haste.ogg'),
+    hit: new Audio('sounds/hit.ogg'),
+    'hit-nat20': new Audio('sounds/hit-nat20.ogg'),
+    mightyblow: new Audio('sounds/mightyblow.ogg'),
+    miss: new Audio('sounds/miss.ogg'),
+    punch: new Audio('sounds/punch.ogg'),
+    swing: new Audio('sounds/swing.ogg')
+};
+
+// Pre-load the audio so there is no delay on play
+Object.values(sfx).forEach(audio => audio.preload = 'auto');
+
+// Playback helper
+function playSound(soundName) {
+    if (sfx[soundName]) {
+        const soundClone = sfx[soundName].cloneNode();
+        soundClone.volume = 0.6;
+        soundClone.play().catch(err => console.warn("Audio blocked:", err));
+    }
+}
+
   // Visual Arrow Animation
   function animateAttackArrow(attacker, defender) {
       const attackerEl = getFighterElement(attacker);
@@ -1002,11 +1029,13 @@ function startGame() {
     currentTurnIndex++;
     if (currentTurnIndex >= turnOrder.length) {
         currentTurnIndex = 0;
-        turnOrder.forEach(c => c.spellCastThisRound = false); // Global Round Reset
-        printLog('<br><span style="color:var(--text-dim);">-- New Round --</span>');
+        turnOrder.forEach(c => c.spellCastThisRound = false); // Global Round Reset caused issue 1
     }
     let activeChar = turnOrder[currentTurnIndex];
     if (activeChar.hp <= 0) { advanceTurn(); return; }
+
+    activeChar.spellCastThisRound = false;
+
     updateUI();
     await new Promise(r => setTimeout(r, 800));
     if (!gameActive) return;
@@ -1020,6 +1049,7 @@ function startGame() {
   }
 
 async function applyCure(caster) {
+    playSound('cure');
     let d = roll(10);
     let rollStr = `[d10: ${d}]`;
     while (d === 1) {
@@ -1033,9 +1063,9 @@ async function applyCure(caster) {
     caster.hp += d;
     caster.spells.cure--;
     printLog(`> ${cName(caster)} casts <b>Cure</b>. Healed <b>${d}</b> HP ${rollStr}.`);
-  }
+}
 
-  async function resolveAttack(attacker, defender, isPunch) {
+async function resolveAttack(attacker, defender, isPunch) {
     const weaponAttacks = [
       "swings their weapon heavily at",
       "lunges aggressively towards",
@@ -1056,6 +1086,7 @@ async function applyCure(caster) {
     printLog(`> ${cName(attacker)} ${actionText} ${cName(defender)}!`);
 
     animateAttackArrow(attacker, defender);
+    playSound(isPunch ? 'punch' : 'swing');
 
     let hitRoll = roll(20);
     let isCrit = (hitRoll === 20), isFumble = (hitRoll === 1);
@@ -1070,14 +1101,24 @@ async function applyCure(caster) {
     if (!gameActive) return;
 
     if (isFumble) {
+      playSound('miss');
       printLog(`<span style="color:#ff4d4d">> Critical Miss!</span> ${cName(attacker)} fumbled!`);
-      if (!isPunch && attacker.armed) { attacker.armed = false; attacker.disarmTimer = 2; printLog(`> Dropped weapon!`); }
+      if (!isPunch && attacker.armed) {
+        attacker.armed = false;
+        attacker.disarmTimer = 2;
+        playSound('disarmed');
+        printLog(`> Dropped weapon!`);
+      }
     } else if (hitRoll >= req || isCrit) {
       let dodged = false;
       if (defender.isPlayer && defender.spells.dodge > 0 && !defender.spellCastThisRound && await askUser(`${attacker.name} hit! Cast Dodge? (${defender.spells.dodge} left)`)) {
-        defender.spells.dodge--; defender.spellCastThisRound = true; dodged = true; printLog(`> You cast <span style="color:#8ec5e8">DODGE</span>! Attack avoided.`);
+        defender.spells.dodge--; defender.spellCastThisRound = true; dodged = true;
+        playSound('dodge');
+        printLog(`> You cast <span style="color:#8ec5e8">DODGE</span>! Attack avoided.`);
       } else if (!defender.isPlayer && defender.spells.dodge > 0 && !defender.spellCastThisRound && (isCrit || defender.hp <= 12)) {
-        defender.spells.dodge--; defender.spellCastThisRound = true; dodged = true; printLog(`> ${cName(defender)} casts <span style="color:#8ec5e8">DODGE</span>!`);
+        defender.spells.dodge--; defender.spellCastThisRound = true; dodged = true;
+        playSound('dodge');
+        printLog(`> ${cName(defender)} casts <span style="color:#8ec5e8">DODGE</span>!`);
       }
       if (!gameActive) return;
 
@@ -1089,11 +1130,13 @@ async function applyCure(caster) {
           attacker.spells.mighty--;
           attacker.spellCastThisRound = true;
           isMighty = true;
+          playSound('mightyblow');
           printLog(`> You cast <span style="color:#ff4d4d">MIGHTY BLOW</span>!`);
         } else if (!attacker.isPlayer && attacker.spells.mighty > 0 && !attacker.spellCastThisRound && (isCrit || roll(3) === 1)) {
           attacker.spells.mighty--;
           attacker.spellCastThisRound = true;
           isMighty = true;
+          playSound('mightyblow');
           printLog(`> ${cName(attacker)} casts <span style="color:#ff4d4d">MIGHTY BLOW</span>!`);
         }
         if (!gameActive) return;
@@ -1102,6 +1145,7 @@ async function applyCure(caster) {
         let rollText = "";
 
         if (isCrit) {
+          playSound('hit-nat20');
           let d1 = roll(6);
           let d2 = roll(6);
           dmg = d1 + d2;
@@ -1113,6 +1157,7 @@ async function applyCure(caster) {
           await animateDice('', 12, dmg, '#ff4d4d');
           if (!gameActive) return;
         } else {
+          playSound('hit');
           let d1 = roll(6);
           if (isPunch) {
              dmg = Math.max(0, d1 - 2);
@@ -1135,11 +1180,14 @@ async function applyCure(caster) {
         defender.hp -= dmg;
         printLog(`> Hit for <b>${dmg}</b> damage! <span style="color:#b8a990; font-size: 0.9em;">${rollText}</span>`);
       }
-    } else { printLog(`> The attack misses.`); }
+    } else {
+      playSound('miss');
+      printLog(`> The attack misses.`);
+    }
     defender.lastAttacker = attacker; updateUI();
-  }
+}
 
-  async function playerTurn(action) {
+ async function playerTurn(action) {
     if (!gameActive) return;
 
     if (['bless', 'haste', 'cure'].includes(action) && p1.spellCastThisRound) {
@@ -1147,6 +1195,7 @@ async function applyCure(caster) {
     }
 
     if (action === 'bless') {
+        playSound('bless');
         p1.spells.bless--;
         p1.blessed = true;
         p1.spellCastThisRound = true;
@@ -1158,6 +1207,7 @@ async function applyCure(caster) {
     setButtonsEnabled(false);
 
     if (action === 'haste') {
+        playSound('haste');
         p1.spells.haste--;
         p1.spellCastThisRound = true;
         playerActionsLeft += (playerActionsLeft === 0 ? 2 : 1);
@@ -1171,7 +1221,7 @@ async function applyCure(caster) {
 
     if (action === 'cure') {
         p1.spellCastThisRound = true;
-        await applyCure(p1);
+        await applyCure(p1); // playSound('cure') is handled inside applyCure
     }
     else if (action === 'attack') {
       if (!p1.armed) {
@@ -1189,6 +1239,7 @@ async function applyCure(caster) {
       printLog(`> ${cName(p1)} attempts to disarm ${cName(targetEnemy)}!`);
 
       animateAttackArrow(p1, targetEnemy);
+      playSound('swing');
 
       let hr = roll(20), req = p1.blessed ? 16 : 17; p1.blessed = false;
 
@@ -1196,8 +1247,16 @@ async function applyCure(caster) {
       if (!gameActive) return;
 
       printLog(`> Rolled <b>${hr}</b> (Needed ${req}+)`);
-      if (hr >= req) { targetEnemy.armed = false; targetEnemy.disarmTimer = 2; printLog(`> <span style="color:#ffcc00">SUCCESS!</span> Weapon knocked away!`); }
-      else printLog(`> Disarm failed.`);
+      if (hr >= req) {
+        targetEnemy.armed = false;
+        targetEnemy.disarmTimer = 2;
+        playSound('disarmed');
+        printLog(`> <span style="color:#ffcc00">SUCCESS!</span> Weapon knocked away!`);
+      }
+      else {
+        playSound('miss');
+        printLog(`> Disarm failed.`);
+      }
     }
     else if (action === 'retrieve') {
       p1.disarmTimer--; printLog(`> Scrambling in the dirt for weapon...`);
@@ -1209,9 +1268,9 @@ async function applyCure(caster) {
     if (checkWin()) return;
     if (playerActionsLeft > 0) { setButtonsEnabled(true); return; }
     await new Promise(r => setTimeout(r, 1200)); advanceTurn();
-  }
+}
 
-  async function doAITurn(ai) {
+ async function doAITurn(ai) {
     if (!gameActive) return;
     printLog(`<br><span style="color:#fff;">-- ${cName(ai)} is at ${ai.hp} hp --</span>`);
 
@@ -1241,12 +1300,16 @@ async function applyCure(caster) {
 
     let acts = 1;
     if (ai.spells.haste > 0 && !ai.spellCastThisRound && (ai.hp <= 14 || !ai.armed)) {
-      ai.spells.haste--; ai.spellCastThisRound = true; acts = 2; printLog(`${cName(ai)} casts <b>Haste</b>!`);
+      ai.spells.haste--; ai.spellCastThisRound = true; acts = 2;
+      playSound('haste');
+      printLog(`${cName(ai)} casts <b>Haste</b>!`);
     }
 
     while (acts > 0 && gameActive && ai.hp > 0) {
       if (ai.spells.bless > 0 && !ai.spellCastThisRound && roll(3)===1 && !ai.blessed) {
-        ai.spells.bless--; ai.blessed = true; ai.spellCastThisRound = true; printLog(`${cName(ai)} casts <b>Bless</b>.`);
+        ai.spells.bless--; ai.blessed = true; ai.spellCastThisRound = true;
+        playSound('bless');
+        printLog(`${cName(ai)} casts <b>Bless</b>.`);
       }
 
       if (!ai.armed) {
@@ -1268,6 +1331,7 @@ async function applyCure(caster) {
           printLog(`> ${cName(ai)} attempts to disarm ${cName(target)}!`);
 
           animateAttackArrow(ai, target);
+          playSound('swing');
 
           let hr = roll(20), req = ai.blessed ? 16 : 17; ai.blessed = false;
 
@@ -1276,9 +1340,13 @@ async function applyCure(caster) {
 
           if (hr >= req) {
             target.armed = false; target.disarmTimer = 2;
+            playSound('disarmed');
             printLog(`> <span style="color:#ff4d4d">WARNING! Weapon knocked away!</span>`);
           }
-          else printLog(`> Disarm failed.`);
+          else {
+            playSound('miss');
+            printLog(`> Disarm failed.`);
+          }
         } else {
           await resolveAttack(ai, target, false);
         }
@@ -1295,7 +1363,7 @@ async function applyCure(caster) {
         await new Promise(r => setTimeout(r, 800));
       }
     }
-  }
+}
 
   function checkWin() {
     updateUI(); let alive = turnOrder.filter(c => c.hp > 0);

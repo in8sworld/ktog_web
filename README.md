@@ -9,6 +9,10 @@ KtOG is a simple dice-based combat game for 2 or more players created by Nate an
 
 ## Change Log
 
+### v261009182431
+* Fixes issue 1 - Using dodge in reaction is counted as having cast it during my own turn
+* adds sounds for various actions and spells from https://pixabay.com
+
 ### v261008213104
 * adds animated arrows to indicate direction of attack
 * scrolls page up so game board is at the top of the screen
