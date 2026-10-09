@@ -628,6 +628,74 @@
   const roll = (sides) => Math.floor(Math.random() * sides) + 1;
   const getRandEl = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+  // Helper to locate the DOM element for any given fighter
+  function getFighterElement(fighter) {
+      if (fighter.isPlayer) {
+          return document.getElementById('player-card');
+      } else {
+          return document.getElementById('enemy-card-' + enemies.indexOf(fighter));
+      }
+  }
+
+  // Visual Arrow Animation
+  function animateAttackArrow(attacker, defender) {
+      const attackerEl = getFighterElement(attacker);
+      const defenderEl = getFighterElement(defender);
+
+      if (!attackerEl || !defenderEl) return;
+
+      const rect1 = attackerEl.getBoundingClientRect();
+      const rect2 = defenderEl.getBoundingClientRect();
+
+      // Determine center coordinates of both cards
+      const startX = rect1.left + (rect1.width / 2);
+      const startY = rect1.top + (rect1.height / 2);
+      const endX = rect2.left + (rect2.width / 2);
+      const endY = rect2.top + (rect2.height / 2);
+
+      // Calculate trajectory angle
+      const dx = endX - startX;
+      const dy = endY - startY;
+      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+      const arrow = document.createElement('div');
+      arrow.style.position = 'fixed';
+      arrow.style.width = '60px';
+      arrow.style.height = '60px';
+      arrow.style.pointerEvents = 'none';
+      arrow.style.zIndex = '3000';
+      // Orient the arrow pointing at the target
+      arrow.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+
+      // Draw SVG arrow color-matched to the attacker
+      arrow.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="${attacker.color}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0 0 6px ${attacker.color});">
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <polyline points="15 5 22 12 15 19"></polyline>
+          </svg>
+      `;
+      document.body.appendChild(arrow);
+
+      // Fire the arrow
+      const animation = arrow.animate([
+          { left: startX + 'px', top: startY + 'px' },
+          { left: endX + 'px', top: endY + 'px' }
+      ], {
+          duration: 450,
+          easing: 'ease-in'
+      });
+
+      // Quick fade/pop effect on impact
+      animation.onfinish = () => {
+          arrow.style.transition = 'all 0.15s ease-out';
+          arrow.style.transform = `translate(-50%, -50%) rotate(${angle}deg) scale(1.5)`;
+          arrow.style.opacity = '0';
+          setTimeout(() => arrow.remove(), 150);
+      };
+  }
+
+
+
   const logDiv = document.getElementById('game-log');
 
   let eventHistory = [];
@@ -797,6 +865,11 @@ function startGame() {
 
     document.getElementById('splash-screen').style.display = 'none';
     document.getElementById('game-board').style.display = 'flex';
+
+    // Scroll the main container to the top of the screen smoothly
+    setTimeout(() => {
+        document.querySelector('main').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
 
     gameActive = true;
 
@@ -982,6 +1055,8 @@ async function applyCure(caster) {
     let actionText = isPunch ? getRandEl(punchAttacks) : getRandEl(weaponAttacks);
     printLog(`> ${cName(attacker)} ${actionText} ${cName(defender)}!`);
 
+    animateAttackArrow(attacker, defender);
+
     let hitRoll = roll(20);
     let isCrit = (hitRoll === 20), isFumble = (hitRoll === 1);
     let req = (defender.armed ? 14 : 12) + (isPunch ? 1 : 0) - (attacker.blessed ? 2 : 0);
@@ -1112,6 +1187,9 @@ async function applyCure(caster) {
     }
     else if (action === 'disarm') {
       printLog(`> ${cName(p1)} attempts to disarm ${cName(targetEnemy)}!`);
+
+      animateAttackArrow(p1, targetEnemy);
+
       let hr = roll(20), req = p1.blessed ? 16 : 17; p1.blessed = false;
 
       await animateDice('', 20, hr, p1.color);
@@ -1188,6 +1266,9 @@ async function applyCure(caster) {
         }
         else if (target.armed && roll(5)===1) {
           printLog(`> ${cName(ai)} attempts to disarm ${cName(target)}!`);
+
+          animateAttackArrow(ai, target);
+
           let hr = roll(20), req = ai.blessed ? 16 : 17; ai.blessed = false;
 
           await animateDice('', 20, hr, ai.color);

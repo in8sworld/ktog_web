@@ -9,6 +9,10 @@ KtOG is a simple dice-based combat game for 2 or more players created by Nate an
 
 ## Change Log
 
+### v261008213104
+* adds animated arrows to indicate direction of attack
+* scrolls page up so game board is at the top of the screen
+
 ### v261008201236
 * switch combat log to DOM manipulation and CSS transitions for smoother flow
 * add link to github on version number
