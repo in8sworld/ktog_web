@@ -948,8 +948,8 @@ const updateLogFades = () => {
   let currentTurnIndex = -1;
   let playerActionsLeft = 0;
 
-  // Animate Dice with dynamic die background selection based on die type and established colors
-  async function animateDice(prefix, sides, finalValue, color = "#ffcc00", subtext = "", animType = "attack") {
+  // Animate Dice with dynamic die background selection, established colors, and green glow when blessed
+  async function animateDice(prefix, sides, finalValue, color = "#ffcc00", subtext = "", animType = "attack", isBlessed = false) {
     const dOverlay = document.getElementById('dice-anim-overlay');
     const valSpan = document.getElementById('dice-value');
     const labelSpan = document.getElementById('dice-label');
@@ -962,11 +962,15 @@ const updateLogFades = () => {
     svgD20.style.display = 'none';
     svgD10.style.display = 'none';
     svgD6.style.display = 'none';
+    svgD20.style.filter = 'none';
 
     let resolvedColor = color;
     if (sides === 20) {
       svgD20.style.display = 'block';
       resolvedColor = '#ffcc00'; // Yellow for attack/d20
+      if (isBlessed) {
+        svgD20.style.filter = 'drop-shadow(0 0 15px #4af626) drop-shadow(0 0 35px #4af626) drop-shadow(0 0 60px #4af626)';
+      }
     } else if (sides === 10) {
       svgD10.style.display = 'block';
       resolvedColor = '#4af626'; // Green for cure/d10
@@ -1007,6 +1011,7 @@ const updateLogFades = () => {
     svgD20.style.display = 'none';
     svgD10.style.display = 'none';
     svgD6.style.display = 'none';
+    svgD20.style.filter = 'none';
   }
 
   // Strategy & Flavor Arrays
@@ -1274,7 +1279,7 @@ async function applyCure(caster) {
       rollStr += ` ➔ rerolled 1 ➔ [d10: ${d}]`;
     }
 
-    await animateDice('', 10, d, '#4af626', '', 'attack');
+    await animateDice('', 10, d, '#4af626', '', 'attack', false);
     if (!gameActive) return;
 
     // Calculate actual healing ensuring it doesn't exceed maxHp
@@ -1303,12 +1308,12 @@ async function resolveFumble(attacker, isPunch) {
     await askUser(selfHitMsg, true, "Roll!");
 
     let selfHitRoll = roll(20);
-    await animateDice('', 20, selfHitRoll, attacker.color, '', 'attack');
+    await animateDice('', 20, selfHitRoll, attacker.color, '', 'attack', false);
     if (!gameActive) return;
 
     if (selfHitRoll >= 17) {
         let selfDmg = roll(6);
-        await animateDice('', 6, selfDmg, '#ff4d4d', '', 'attack');
+        await animateDice('', 6, selfDmg, '#ff4d4d', '', 'attack', false);
         if (!gameActive) return;
 
         attacker.hp -= selfDmg;
@@ -1326,7 +1331,7 @@ async function resolveFumble(attacker, isPunch) {
             await askUser(disarmMsg, true, "Roll!");
 
             let disarmRoll = roll(20);
-            await animateDice('', 20, disarmRoll, attacker.color, '', 'attack');
+            await animateDice('', 20, disarmRoll, attacker.color, '', 'attack', false);
             if (!gameActive) return;
 
             if (disarmRoll >= 17) {
@@ -1366,10 +1371,11 @@ async function resolveAttack(attacker, defender, isPunch) {
 
     let hitRoll = roll(20);
     let isCrit = (hitRoll === 20), isFumble = (hitRoll === 1);
+    let isCurrentlyBlessed = attacker.blessed;
     let req = (defender.armed ? 14 : 12) + (isPunch ? 1 : 0) - (attacker.blessed ? 2 : 0);
     if(attacker.blessed) attacker.blessed = false;
 
-    await animateDice('', 20, hitRoll, attacker.color, '', 'attack');
+    await animateDice('', 20, hitRoll, attacker.color, '', 'attack', isCurrentlyBlessed);
     if (!gameActive) return;
 
     printLog(`> ${cName(attacker)} rolled a <b>${hitRoll}</b> [d20]. (Needed ${req}+)`);
@@ -1425,7 +1431,7 @@ if (isFumble) {
           await new Promise(r => setTimeout(r, 800));
           if (!gameActive) return;
 
-          await animateDice('', 12, dmg, '#ff4d4d', '', 'attack');
+          await animateDice('', 12, dmg, '#ff4d4d', '', 'attack', false);
           if (!gameActive) return;
         } else {
           playSound('hit');
@@ -1438,7 +1444,7 @@ if (isFumble) {
              rollText = `[d6: ${d1}]`;
           }
 
-          await animateDice('', 6, dmg, '#ff4d4d', '', 'attack');
+          await animateDice('', 6, dmg, '#ff4d4d', '', 'attack', false);
           if (!gameActive) return;
         }
 
@@ -1521,10 +1527,11 @@ if (action === 'cure') {
       animateAttackArrow(p1, targetEnemy);
       playSound('swing');
 
+      let isCurrentlyBlessed = p1.blessed;
       let hr = roll(20), req = p1.blessed ? 16 : 17; p1.blessed = false;
 
-      // Disarmed roll with distinct disarm animation and subtext
-      await animateDice('', 20, hr, p1.color, 'to disarm!', 'disarm');
+      // Disarmed roll with distinct disarm animation, subtext, and blessed glow state
+      await animateDice('', 20, hr, p1.color, 'to disarm!', 'disarm', isCurrentlyBlessed);
       if (!gameActive) return;
 
       printLog(`> Rolled <b>${hr}</b> (Needed ${req}+)`);
@@ -1618,10 +1625,11 @@ if (action === 'cure') {
           animateAttackArrow(ai, target);
           playSound('swing');
 
+          let isCurrentlyBlessed = ai.blessed;
           let hr = roll(20), req = ai.blessed ? 16 : 17; ai.blessed = false;
 
-          // AI Disarm roll with distinct disarm animation and subtext
-          await animateDice('', 20, hr, ai.color, 'to disarm!', 'disarm');
+          // AI Disarm roll with distinct disarm animation, subtext, and blessed glow state
+          await animateDice('', 20, hr, ai.color, 'to disarm!', 'disarm', isCurrentlyBlessed);
           if (!gameActive) return;
 
           if (hr === 1) {
