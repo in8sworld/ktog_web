@@ -9,6 +9,9 @@ KtOG is a simple dice-based combat game for 2 or more players created by Nate an
 
 ## Change Log
 
+### v261010094258
+* css tweaks for mobile devices to better fit the screen and reduce button size so more fit per row
+
 ### v261010083100
 * attempt to fix issue #5 by removing cloning and resetting currentTime
 
