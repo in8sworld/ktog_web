@@ -1073,6 +1073,57 @@ async function applyCure(caster) {
     printLog(`> ${cName(caster)} casts <b>Cure</b>. Healed <b>${actualHeal}</b> HP ${rollStr}.`);
 }
 
+
+async function resolveFumble(attacker, isPunch) {
+    playSound('miss');
+    printLog(`<span style="color:#ff4d4d">> Critical Miss!</span> ${cName(attacker)} fumbled!`);
+
+    // 1. Roll to hit yourself / themselves
+    let selfHitMsg = attacker.isPlayer
+    ? "Critical Miss! You are rolling to hit yourself."
+    : `Critical Miss! ${attacker.name} is rolling to hit themselves.`;
+
+    await askUser(selfHitMsg, true, "Roll!");
+
+    let selfHitRoll = roll(20);
+    await animateDice('', 20, selfHitRoll, attacker.color);
+    if (!gameActive) return;
+
+    if (selfHitRoll >= 17) {
+        let selfDmg = roll(6);
+        await animateDice('', 6, selfDmg, '#ff4d4d');
+        if (!gameActive) return;
+
+        attacker.hp -= selfDmg;
+        playSound('hit');
+        printLog(`> ${cName(attacker)} struck themselves for <b>${selfDmg}</b> damage! [d20: ${selfHitRoll}]`);
+    } else {
+        printLog(`> ${cName(attacker)} avoided hitting themselves. [d20: ${selfHitRoll}]`);
+
+        // 2. Roll to lose your/their weapon
+        if (!isPunch && attacker.armed) {
+            let disarmMsg = attacker.isPlayer
+            ? "Self-hit avoided! You are rolling to lose your weapon."
+            : `Self-hit avoided! ${attacker.name} is rolling to lose their weapon.`;
+
+            await askUser(disarmMsg, true, "Roll!");
+
+            let disarmRoll = roll(20);
+            await animateDice('', 20, disarmRoll, attacker.color);
+            if (!gameActive) return;
+
+            if (disarmRoll >= 17) {
+                attacker.armed = false;
+                attacker.disarmTimer = 2;
+                playSound('disarmed');
+                printLog(`> ${cName(attacker)} lost grip and dropped their weapon! [d20: ${disarmRoll}]`);
+            } else {
+                printLog(`> ${cName(attacker)} maintained grip on their weapon. [d20: ${disarmRoll}]`);
+            }
+        }
+    }
+}
+
 async function resolveAttack(attacker, defender, isPunch) {
     const weaponAttacks = [
       "swings their weapon heavily at",
@@ -1110,53 +1161,7 @@ async function resolveAttack(attacker, defender, isPunch) {
 
 
 if (isFumble) {
-      playSound('miss');
-      printLog(`<span style="color:#ff4d4d">> Critical Miss!</span> ${cName(attacker)} fumbled!`);
-
-      // 1. Roll to hit yourself / themselves
-      let selfHitMsg = attacker.isPlayer
-        ? "Critical Miss! You are rolling to hit yourself."
-        : `Critical Miss! ${attacker.name} is rolling to hit themselves.`;
-
-      await askUser(selfHitMsg, true, "Roll!");
-
-      let selfHitRoll = roll(20);
-      await animateDice('', 20, selfHitRoll, attacker.color);
-      if (!gameActive) return;
-
-      if (selfHitRoll >= 17) {
-        let selfDmg = roll(6);
-        await animateDice('', 6, selfDmg, '#ff4d4d');
-        if (!gameActive) return;
-
-        attacker.hp -= selfDmg;
-        playSound('hit');
-        printLog(`> ${cName(attacker)} struck themselves for <b>${selfDmg}</b> damage! [d20: ${selfHitRoll}]`);
-      } else {
-        printLog(`> ${cName(attacker)} avoided hitting themselves. [d20: ${selfHitRoll}]`);
-
-        // 2. Roll to lose your/their weapon
-        if (!isPunch && attacker.armed) {
-          let disarmMsg = attacker.isPlayer
-            ? "Self-hit avoided! You are rolling to lose your weapon."
-            : `Self-hit avoided! ${attacker.name} is rolling to lose their weapon.`;
-
-          await askUser(disarmMsg, true, "Roll!");
-
-          let disarmRoll = roll(20);
-          await animateDice('', 20, disarmRoll, attacker.color);
-          if (!gameActive) return;
-
-          if (disarmRoll >= 17) {
-            attacker.armed = false;
-            attacker.disarmTimer = 2;
-            playSound('disarmed');
-            printLog(`> ${cName(attacker)} lost grip and dropped their weapon! [d20: ${disarmRoll}]`);
-          } else {
-            printLog(`> ${cName(attacker)} maintained grip on their weapon. [d20: ${disarmRoll}]`);
-          }
-        }
-      }
+      await resolveFumble(attacker, isPunch);
     } else if (hitRoll >= req || isCrit) {
 
       let dodged = false;
@@ -1305,7 +1310,11 @@ if (action === 'cure') {
       if (!gameActive) return;
 
       printLog(`> Rolled <b>${hr}</b> (Needed ${req}+)`);
-      if (hr >= req) {
+
+      if (hr === 1) {
+        await resolveFumble(p1, false);
+      } else if (hr >= req) {
+
         targetEnemy.armed = false;
         targetEnemy.disarmTimer = 2;
         playSound('disarmed');
@@ -1396,7 +1405,10 @@ if (action === 'cure') {
           await animateDice('', 20, hr, ai.color);
           if (!gameActive) return;
 
-          if (hr >= req) {
+          if (hr === 1) {
+            await resolveFumble(ai, false);
+          } else if (hr >= req) {
+
             target.armed = false; target.disarmTimer = 2;
             playSound('disarmed');
             printLog(`> <span style="color:#ff4d4d">WARNING! Weapon knocked away!</span>`);
