@@ -9,6 +9,9 @@ KtOG is a simple dice-based combat game for 2 or more players created by Nate an
 
 ## Change Log
 
+### v261010111045
+* adds svg backgrounds for d20, d10, and d6 and adds "to disarm!" to disarm roll animation
+
 ### v261010094258
 * css tweaks for mobile devices to better fit the screen and reduce button size so more fit per row
 

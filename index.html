@@ -224,9 +224,49 @@
       z-index: 2000;
       display: none;
       pointer-events: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 30px;
     }
+
+    .dice-bg-svg {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 200px;
+      height: 200px;
+      z-index: 1;
+      opacity: 0.22;
+      pointer-events: none;
+      display: none;
+    }
+
+    #dice-value {
+      line-height: 1;
+      position: relative;
+      z-index: 2;
+    }
+
+    #dice-label {
+      font-size: 1.1rem !important;
+      font-family: var(--font-head);
+      color: #ffcc00;
+      text-shadow: 2px 2px 0px #000, 0 0 10px rgba(0,0,0,0.8);
+      margin-top: 5px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      position: relative;
+      z-index: 2;
+      display: none;
+    }
+
     .shake-roll { animation: diceShake 0.1s infinite; }
     .pop-result { animation: dicePop 0.9s ease-out forwards; }
+
+    .shake-disarm { animation: disarmShake 0.12s infinite; }
+    .pop-disarm { animation: disarmPop 0.9s ease-out forwards; }
 
     @keyframes diceShake {
       0% { transform: translate(-50%, -50%) rotate(-4deg); }
@@ -238,6 +278,19 @@
       15% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; text-shadow: 0 0 50px #ff4d4d, 0 0 20px #fff; }
       70% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
       100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+    }
+
+    @keyframes disarmShake {
+      0% { transform: translate(-50%, -50%) scale(0.95) rotate(0deg); }
+      25% { transform: translate(-50%, -50%) scale(1.05) rotate(-6deg); }
+      75% { transform: translate(-50%, -50%) scale(1.05) rotate(6deg); }
+      100% { transform: translate(-50%, -50%) scale(0.95) rotate(0deg); }
+    }
+    @keyframes disarmPop {
+      0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+      20% { transform: translate(-50%, -50%) scale(1.4) rotate(-5deg); opacity: 1; text-shadow: 0 0 40px #ffcc00, 0 0 20px #fff; }
+      70% { transform: translate(-50%, -50%) scale(1.4) rotate(0deg); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(1.7); opacity: 0; }
     }
 
     /* FOOTER */
@@ -555,7 +608,36 @@
     <!-- PAGE 4: THE GAME -->
     <section id="page-game" class="page-section">
       <div id="ktog-container">
-          <div id="dice-anim-overlay"></div>
+          <div id="dice-anim-overlay">
+            <!-- d20 Background SVG (Yellow) -->
+            <svg id="svg-d20" viewBox="0 0 100 100" class="dice-bg-svg" preserveAspectRatio="xMidYMid meet">
+              <polygon points="50,3 93,27 93,73 50,97 7,73 7,27" fill="currentColor" stroke="currentColor" stroke-width="2"/>
+              <line x1="50" y1="3" x2="50" y2="97" stroke="#000" stroke-width="1.5"/>
+              <line x1="7" y1="27" x2="93" y2="73" stroke="#000" stroke-width="1.5"/>
+              <line x1="93" y1="27" x2="7" y2="73" stroke="#000" stroke-width="1.5"/>
+            </svg>
+            <!-- d10 Background SVG (Green) -->
+            <svg id="svg-d10" viewBox="0 0 100 100" class="dice-bg-svg" preserveAspectRatio="xMidYMid meet">
+              <polygon points="50,4 94,33 78,94 22,94 6,33" fill="currentColor" stroke="currentColor" stroke-width="2"/>
+              <line x1="50" y1="4" x2="50" y2="94" stroke="#000" stroke-width="1.5"/>
+              <line x1="50" y1="4" x2="78" y2="94" stroke="#000" stroke-width="1.5"/>
+              <line x1="50" y1="4" x2="22" y2="94" stroke="#000" stroke-width="1.5"/>
+              <line x1="50" y1="4" x2="94" y2="33" stroke="#000" stroke-width="1.5"/>
+              <line x1="50" y1="4" x2="6" y2="33" stroke="#000" stroke-width="1.5"/>
+            </svg>
+            <!-- d6 Background SVG (Red) -->
+            <svg id="svg-d6" viewBox="0 0 100 100" class="dice-bg-svg" preserveAspectRatio="xMidYMid meet">
+              <rect x="12" y="12" width="76" height="76" rx="10" fill="currentColor" stroke="currentColor" stroke-width="2"/>
+              <line x1="12" y1="50" x2="88" y2="50" stroke="#000" stroke-width="1.5"/>
+              <line x1="50" y1="12" x2="50" y2="88" stroke="#000" stroke-width="1.5"/>
+              <circle cx="31" cy="31" r="5" fill="#000"/>
+              <circle cx="69" cy="31" r="5" fill="#000"/>
+              <circle cx="31" cy="69" r="5" fill="#000"/>
+              <circle cx="69" cy="69" r="5" fill="#000"/>
+            </svg>
+            <span id="dice-value"></span>
+            <span id="dice-label"></span>
+          </div>
 
         <!-- Main Menu -->
         <div id="splash-screen">
@@ -866,25 +948,65 @@ const updateLogFades = () => {
   let currentTurnIndex = -1;
   let playerActionsLeft = 0;
 
-  // Animate Dice
-  async function animateDice(prefix, sides, finalValue, color = "#ffcc00") {
+  // Animate Dice with dynamic die background selection based on die type and established colors
+  async function animateDice(prefix, sides, finalValue, color = "#ffcc00", subtext = "", animType = "attack") {
     const dOverlay = document.getElementById('dice-anim-overlay');
-    dOverlay.className = 'shake-roll';
-    dOverlay.style.display = 'block';
-    dOverlay.style.color = color;
+    const valSpan = document.getElementById('dice-value');
+    const labelSpan = document.getElementById('dice-label');
+
+    const svgD20 = document.getElementById('svg-d20');
+    const svgD10 = document.getElementById('svg-d10');
+    const svgD6 = document.getElementById('svg-d6');
+
+    // Hide all SVGs initially
+    svgD20.style.display = 'none';
+    svgD10.style.display = 'none';
+    svgD6.style.display = 'none';
+
+    let resolvedColor = color;
+    if (sides === 20) {
+      svgD20.style.display = 'block';
+      resolvedColor = '#ffcc00'; // Yellow for attack/d20
+    } else if (sides === 10) {
+      svgD10.style.display = 'block';
+      resolvedColor = '#4af626'; // Green for cure/d10
+    } else if (sides === 6 || sides === 12) {
+      svgD6.style.display = 'block';
+      resolvedColor = '#ff4d4d'; // Red for damage/d6
+    }
+
+    dOverlay.style.display = 'flex';
+    dOverlay.style.color = resolvedColor;
+
+    let shakeClass = (animType === 'disarm') ? 'shake-disarm' : 'shake-roll';
+    let popClass = (animType === 'disarm') ? 'pop-disarm' : 'pop-result';
+
+    dOverlay.className = shakeClass;
+
+    if (subtext) {
+      labelSpan.innerText = subtext;
+      labelSpan.style.display = 'block';
+    } else {
+      labelSpan.style.display = 'none';
+      labelSpan.innerText = '';
+    }
 
     let textPrefix = prefix ? `${prefix} ` : '';
 
     for(let i = 0; i < 8; i++) {
-      dOverlay.innerText = `${textPrefix}${roll(sides)}`;
+      valSpan.innerText = `${textPrefix}${roll(sides)}`;
       await new Promise(r => setTimeout(r, 60));
     }
 
-    dOverlay.className = 'pop-result';
-    dOverlay.innerText = `${textPrefix}${finalValue}`;
+    dOverlay.className = popClass;
+    valSpan.innerText = `${textPrefix}${finalValue}`;
 
     await new Promise(r => setTimeout(r, 900));
     dOverlay.style.display = 'none';
+    labelSpan.style.display = 'none';
+    svgD20.style.display = 'none';
+    svgD10.style.display = 'none';
+    svgD6.style.display = 'none';
   }
 
   // Strategy & Flavor Arrays
@@ -1152,7 +1274,7 @@ async function applyCure(caster) {
       rollStr += ` ➔ rerolled 1 ➔ [d10: ${d}]`;
     }
 
-    await animateDice('', 10, d, '#4af626');
+    await animateDice('', 10, d, '#4af626', '', 'attack');
     if (!gameActive) return;
 
     // Calculate actual healing ensuring it doesn't exceed maxHp
@@ -1181,12 +1303,12 @@ async function resolveFumble(attacker, isPunch) {
     await askUser(selfHitMsg, true, "Roll!");
 
     let selfHitRoll = roll(20);
-    await animateDice('', 20, selfHitRoll, attacker.color);
+    await animateDice('', 20, selfHitRoll, attacker.color, '', 'attack');
     if (!gameActive) return;
 
     if (selfHitRoll >= 17) {
         let selfDmg = roll(6);
-        await animateDice('', 6, selfDmg, '#ff4d4d');
+        await animateDice('', 6, selfDmg, '#ff4d4d', '', 'attack');
         if (!gameActive) return;
 
         attacker.hp -= selfDmg;
@@ -1204,7 +1326,7 @@ async function resolveFumble(attacker, isPunch) {
             await askUser(disarmMsg, true, "Roll!");
 
             let disarmRoll = roll(20);
-            await animateDice('', 20, disarmRoll, attacker.color);
+            await animateDice('', 20, disarmRoll, attacker.color, '', 'attack');
             if (!gameActive) return;
 
             if (disarmRoll >= 17) {
@@ -1247,7 +1369,7 @@ async function resolveAttack(attacker, defender, isPunch) {
     let req = (defender.armed ? 14 : 12) + (isPunch ? 1 : 0) - (attacker.blessed ? 2 : 0);
     if(attacker.blessed) attacker.blessed = false;
 
-    await animateDice('', 20, hitRoll, attacker.color);
+    await animateDice('', 20, hitRoll, attacker.color, '', 'attack');
     if (!gameActive) return;
 
     printLog(`> ${cName(attacker)} rolled a <b>${hitRoll}</b> [d20]. (Needed ${req}+)`);
@@ -1303,7 +1425,7 @@ if (isFumble) {
           await new Promise(r => setTimeout(r, 800));
           if (!gameActive) return;
 
-          await animateDice('', 12, dmg, '#ff4d4d');
+          await animateDice('', 12, dmg, '#ff4d4d', '', 'attack');
           if (!gameActive) return;
         } else {
           playSound('hit');
@@ -1316,7 +1438,7 @@ if (isFumble) {
              rollText = `[d6: ${d1}]`;
           }
 
-          await animateDice('', 6, dmg, '#ff4d4d');
+          await animateDice('', 6, dmg, '#ff4d4d', '', 'attack');
           if (!gameActive) return;
         }
 
@@ -1401,7 +1523,8 @@ if (action === 'cure') {
 
       let hr = roll(20), req = p1.blessed ? 16 : 17; p1.blessed = false;
 
-      await animateDice('', 20, hr, p1.color);
+      // Disarmed roll with distinct disarm animation and subtext
+      await animateDice('', 20, hr, p1.color, 'to disarm!', 'disarm');
       if (!gameActive) return;
 
       printLog(`> Rolled <b>${hr}</b> (Needed ${req}+)`);
@@ -1497,7 +1620,8 @@ if (action === 'cure') {
 
           let hr = roll(20), req = ai.blessed ? 16 : 17; ai.blessed = false;
 
-          await animateDice('', 20, hr, ai.color);
+          // AI Disarm roll with distinct disarm animation and subtext
+          await animateDice('', 20, hr, ai.color, 'to disarm!', 'disarm');
           if (!gameActive) return;
 
           if (hr === 1) {
