@@ -1078,10 +1078,10 @@ async function resolveFumble(attacker, isPunch) {
     playSound('miss');
     printLog(`<span style="color:#ff4d4d">> Critical Miss!</span> ${cName(attacker)} fumbled!`);
 
-    // 1. Roll to hit yourself / themselves
+    // 1. Roll to hit yourself / themself
     let selfHitMsg = attacker.isPlayer
-    ? "Critical Miss! You are rolling to hit yourself."
-    : `Critical Miss! ${attacker.name} is rolling to hit themselves.`;
+    ? "Critical Miss! You must roll to hit yourself."
+    : `Critical Miss! ${attacker.name} must roll to hit themself.`;
 
     await askUser(selfHitMsg, true, "Roll!");
 
@@ -1096,15 +1096,15 @@ async function resolveFumble(attacker, isPunch) {
 
         attacker.hp -= selfDmg;
         playSound('hit');
-        printLog(`> ${cName(attacker)} struck themselves for <b>${selfDmg}</b> damage! [d20: ${selfHitRoll}]`);
+        printLog(`> ${cName(attacker)} struck themself for <b>${selfDmg}</b> damage! [d20: ${selfHitRoll}]`);
     } else {
-        printLog(`> ${cName(attacker)} avoided hitting themselves. [d20: ${selfHitRoll}]`);
+        printLog(`> ${cName(attacker)} avoided hitting themself. [d20: ${selfHitRoll}]`);
 
         // 2. Roll to lose your/their weapon
         if (!isPunch && attacker.armed) {
             let disarmMsg = attacker.isPlayer
-            ? "Self-hit avoided! You are rolling to lose your weapon."
-            : `Self-hit avoided! ${attacker.name} is rolling to lose their weapon.`;
+            ? "Self-hit avoided! You must roll to lose your weapon."
+            : `Self-hit avoided! ${attacker.name} must roll to lose their weapon.`;
 
             await askUser(disarmMsg, true, "Roll!");
 

@@ -9,6 +9,9 @@ KtOG is a simple dice-based combat game for 2 or more players created by Nate an
 
 ## Change Log
 
+### v261010064613
+* minor text changes in `resolveFumble` for "themselves" to "themself"
+
 ### v261009213734
 * Fixes issue #4 - Crit miss when attempting to disarm now follows official rules
 
