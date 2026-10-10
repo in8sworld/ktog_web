@@ -9,6 +9,9 @@ KtOG is a simple dice-based combat game for 2 or more players created by Nate an
 
 ## Change Log
 
+### v261010083100
+* attempt to fix issue #5 by removing cloning and resetting currentTime
+
 ### v261010072613
 * color of the > prepending log entries matches active player
 * human user is marked as dead to match AI players who die - adds tombstone svg

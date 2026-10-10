@@ -658,12 +658,13 @@ const sfx = {
 // Pre-load the audio so there is no delay on play
 Object.values(sfx).forEach(audio => audio.preload = 'auto');
 
-// Playback helper
+// Playback helper - fix for firefox mobile, don't clone
 function playSound(soundName) {
     if (sfx[soundName]) {
-        const soundClone = sfx[soundName].cloneNode();
-        soundClone.volume = 0.6;
-        soundClone.play().catch(err => console.warn("Audio blocked:", err));
+        const sound = sfx[soundName];
+        sound.currentTime = 0;
+        sound.volume = 0.6;
+        sound.play().catch(err => console.warn("Audio blocked:", err));
     }
 }
 
