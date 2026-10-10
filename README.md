@@ -9,6 +9,10 @@ KtOG is a simple dice-based combat game for 2 or more players created by Nate an
 
 ## Change Log
 
+### v261009205551
+* Fixes issue #3 - Critical miss should match official rules
+* adds some space between users in combat log for readability
+
 ### v261009191838
 * Fixes issue #2 - Cure should only heal damage
 

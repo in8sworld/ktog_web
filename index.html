@@ -1009,7 +1009,7 @@ function startGame() {
 
   async function determineInitiative() {
     setButtonsEnabled(false);
-    printLog('<br><span style="color:#fff;">-- Initiative Roll --</span>');
+    printLog('<div style="margin-bottom: 16px; color:#fff;">-- Initiative Roll --</div>');
     await askUser("Roll a 100-sided die to determine the turn order. Ready?", true, "Roll!");
     if (!gameActive) return;
     turnOrder.forEach(c => {
@@ -1041,7 +1041,7 @@ function startGame() {
     if (!gameActive) return;
     if (activeChar.isPlayer) {
 
-    playerActionsLeft = 1; printLog(`<br><span style="color:#fff;">-- ${cName(activeChar)} is at ${activeChar.hp} hp --</span>`); setButtonsEnabled(true);
+    playerActionsLeft = 1; printLog(`<div style="margin-bottom: 16px; color:#fff;">-- ${cName(activeChar)} is at ${activeChar.hp} hp --</div>`); setButtonsEnabled(true);
 
     } else {
       await doAITurn(activeChar); await new Promise(r => setTimeout(r, 1200)); advanceTurn();
@@ -1108,16 +1108,57 @@ async function resolveAttack(attacker, defender, isPunch) {
     await new Promise(r => setTimeout(r, 800));
     if (!gameActive) return;
 
-    if (isFumble) {
+
+if (isFumble) {
       playSound('miss');
       printLog(`<span style="color:#ff4d4d">> Critical Miss!</span> ${cName(attacker)} fumbled!`);
-      if (!isPunch && attacker.armed) {
-        attacker.armed = false;
-        attacker.disarmTimer = 2;
-        playSound('disarmed');
-        printLog(`> Dropped weapon!`);
+
+      // 1. Roll to hit yourself / themselves
+      let selfHitMsg = attacker.isPlayer
+        ? "Critical Miss! You are rolling to hit yourself."
+        : `Critical Miss! ${attacker.name} is rolling to hit themselves.`;
+
+      await askUser(selfHitMsg, true, "Roll!");
+
+      let selfHitRoll = roll(20);
+      await animateDice('', 20, selfHitRoll, attacker.color);
+      if (!gameActive) return;
+
+      if (selfHitRoll >= 17) {
+        let selfDmg = roll(6);
+        await animateDice('', 6, selfDmg, '#ff4d4d');
+        if (!gameActive) return;
+
+        attacker.hp -= selfDmg;
+        playSound('hit');
+        printLog(`> ${cName(attacker)} struck themselves for <b>${selfDmg}</b> damage! [d20: ${selfHitRoll}]`);
+      } else {
+        printLog(`> ${cName(attacker)} avoided hitting themselves. [d20: ${selfHitRoll}]`);
+
+        // 2. Roll to lose your/their weapon
+        if (!isPunch && attacker.armed) {
+          let disarmMsg = attacker.isPlayer
+            ? "Self-hit avoided! You are rolling to lose your weapon."
+            : `Self-hit avoided! ${attacker.name} is rolling to lose their weapon.`;
+
+          await askUser(disarmMsg, true, "Roll!");
+
+          let disarmRoll = roll(20);
+          await animateDice('', 20, disarmRoll, attacker.color);
+          if (!gameActive) return;
+
+          if (disarmRoll >= 17) {
+            attacker.armed = false;
+            attacker.disarmTimer = 2;
+            playSound('disarmed');
+            printLog(`> ${cName(attacker)} lost grip and dropped their weapon! [d20: ${disarmRoll}]`);
+          } else {
+            printLog(`> ${cName(attacker)} maintained grip on their weapon. [d20: ${disarmRoll}]`);
+          }
+        }
       }
     } else if (hitRoll >= req || isCrit) {
+
       let dodged = false;
       if (defender.isPlayer && defender.spells.dodge > 0 && !defender.spellCastThisRound && await askUser(`${attacker.name} hit! Cast Dodge? (${defender.spells.dodge} left)`)) {
         defender.spells.dodge--; defender.spellCastThisRound = true; dodged = true;
@@ -1289,7 +1330,7 @@ if (action === 'cure') {
 
  async function doAITurn(ai) {
     if (!gameActive) return;
-    printLog(`<br><span style="color:#fff;">-- ${cName(ai)} is at ${ai.hp} hp --</span>`);
+    printLog(`<div style="margin-bottom: 16px; color:#fff;">-- ${cName(ai)} is at ${ai.hp} hp --</div>`);
 
     let targets = turnOrder.filter(c => c.hp > 0 && c !== ai);
     if (targets.length === 0) { checkWin(); return; }
@@ -1385,10 +1426,10 @@ if (action === 'cure') {
   function checkWin() {
     updateUI(); let alive = turnOrder.filter(c => c.hp > 0);
     if (alive.length === 1) {
-      let w = alive[0]; printLog(`<br><b style="color:${w.isPlayer ? '#4af626' : '#ff4d4d'}">*** ${w.isPlayer ? 'VICTORY! You survive the pit!' : `MATCH OVER! ${w.name} stands victorious.`} ***</b>`);
+    let w = alive[0]; printLog(`<div style="margin-bottom: 16px;"><b style="color:${w.isPlayer ? '#4af626' : '#ff4d4d'}">*** ${w.isPlayer ? 'VICTORY! You survive the pit!' : `MATCH OVER! ${w.name} stands victorious.`} ***</b></div>`);
       gameActive = false; setButtonsEnabled(false); return true;
     } else if (alive.length === 0) {
-      printLog(`<br><b style="color:#ffaa00">DRAW! The pit claims you all.</b>`);
+      printLog(`<div style="margin-bottom: 16px;"><b style="color:#ffaa00">DRAW! The pit claims you all.</b></div>`);
       gameActive = false; setButtonsEnabled(false); return true;
     }
     return false;
