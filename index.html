@@ -628,6 +628,9 @@
   const roll = (sides) => Math.floor(Math.random() * sides) + 1;
   const getRandEl = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
+  // Reusable Tombstone SVG
+  const tombstoneSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#888" style="vertical-align: middle; margin-left: 6px;"><path d="M12 2C8 2 5 5 5 9v13h14V9c0-4-3-7-7-7zm0 2c2.76 0 5 2.24 5 5v1H7V9c0-2.76 2.24-5 5-5zm-7 15v-2h14v2H5z"/></svg>`;
+
   // Helper to locate the DOM element for any given fighter
   function getFighterElement(fighter) {
       if (fighter.isPlayer) {
@@ -747,10 +750,24 @@ const printLog = (msg) => {
   let cleanMsg = msg.replace(/<br>/g, '').trim();
   if (cleanMsg === "") return;
 
+  let formattedMsg = cleanMsg;
+  if (cleanMsg.startsWith('&gt;') || cleanMsg.startsWith('>')) {
+    let activeChar = (currentTurnIndex >= 0 && turnOrder[currentTurnIndex]) ? turnOrder[currentTurnIndex] : null;
+    let activeColor = activeChar ? activeChar.color : null;
+
+    if (activeColor) {
+      if (cleanMsg.startsWith('&gt;')) {
+        formattedMsg = `<span style="color: ${activeColor};">&gt;</span>` + cleanMsg.substring(4);
+      } else {
+        formattedMsg = `<span style="color: ${activeColor};">&gt;</span>` + cleanMsg.substring(1);
+      }
+    }
+  }
+
   // 1. Create the new log element
   const newLogLine = document.createElement('div');
   newLogLine.className = 'log-entry'; // Starts bold and fully visible
-  newLogLine.innerHTML = cleanMsg;
+  newLogLine.innerHTML = formattedMsg;
 
   // 2. Prepend it to the top of the container
   logDiv.prepend(newLogLine);
@@ -818,7 +835,7 @@ const updateLogFades = () => {
     "draws first blood with a vicious swing", "hammers into the enemy"
   ];
   const poorMissFlavors = [
-    "swings wildly at the air and looks totally foolish", "nearly trips over their own feet",
+    "swings wildly at the air", "nearly trips over their own feet",
     "hits nothing but dirt", "fumbles the attack completely", "displays embarrassing form",
     "swings with all the grace of a stumbling ogre"
   ];
@@ -950,22 +967,37 @@ function startGame() {
     if (!gameActive) return;
     let activeChar = (currentTurnIndex >= 0) ? turnOrder[currentTurnIndex] : null;
 
-    document.getElementById('p-hp').innerText = `HP: ${p1.hp}`;
-    document.getElementById('p-name-display').innerHTML = `<img src="${p1.avatar}" class="avatar" /> <span style="color:${p1.color}">${p1.name}</span>`;
-
     let pCard = document.getElementById('player-card');
     pCard.className = (activeChar === p1 && p1.hp > 0) ? 'card active-turn' : 'card';
     if(activeChar === p1) pCard.style.setProperty('--active-color', p1.color);
 
     const getStatus = (f) => f.armed ? "Armed" : `<span class="status-disarmed">Disarmed (${f.disarmTimer})</span>` + (f.blessed ? " | <b>BLESSED</b>" : "");
-    document.getElementById('p-status').innerHTML = `Status: ${getStatus(p1)}`;
-    document.getElementById('p-counters').innerText = `Counters: Dodge (${p1.spells.dodge}) | Mighty (${p1.spells.mighty})`;
-    ['cure','bless','haste'].forEach(s => document.getElementById(`btn-${s}`).innerText = `${s.charAt(0).toUpperCase() + s.slice(1)} (${p1.spells[s]})`);
 
-    document.getElementById('btn-attack').style.display = 'inline-block';
-    document.getElementById('btn-disarm').style.display = p1.armed ? 'inline-block' : 'none';
-    document.getElementById('btn-retrieve').style.display = p1.armed ? 'none' : 'inline-block';
-    if(!p1.armed) document.getElementById('btn-retrieve').innerText = `Retrieve (${p1.disarmTimer})`;
+    if (p1.hp <= 0) {
+      pCard.style.opacity = '0.4';
+      document.getElementById('p-hp').innerText = '';
+      document.getElementById('p-name-display').innerHTML = `<img src="${p1.avatar}" class="avatar" /> <span style="color:#777;">${p1.name} [DEAD] ${tombstoneSvg}</span>`;
+      document.getElementById('p-status').innerHTML = '';
+      document.getElementById('p-counters').innerHTML = '';
+      document.getElementById('p-target-box').style.display = 'none';
+      document.getElementById('p-actions').style.display = 'none';
+      document.getElementById('p-spells').style.display = 'none';
+    } else {
+      pCard.style.opacity = '1';
+      document.getElementById('p-target-box').style.display = 'block';
+      document.getElementById('p-actions').style.display = 'flex';
+      document.getElementById('p-spells').style.display = 'flex';
+      document.getElementById('p-hp').innerText = `HP: ${p1.hp}`;
+      document.getElementById('p-name-display').innerHTML = `<img src="${p1.avatar}" class="avatar" /> <span style="color:${p1.color}">${p1.name}</span>`;
+      document.getElementById('p-status').innerHTML = `Status: ${getStatus(p1)}`;
+      document.getElementById('p-counters').innerText = `Counters: Dodge (${p1.spells.dodge}) | Mighty (${p1.spells.mighty})`;
+      ['cure','bless','haste'].forEach(s => document.getElementById(`btn-${s}`).innerText = `${s.charAt(0).toUpperCase() + s.slice(1)} (${p1.spells[s]})`);
+
+      document.getElementById('btn-attack').style.display = 'inline-block';
+      document.getElementById('btn-disarm').style.display = p1.armed ? 'inline-block' : 'none';
+      document.getElementById('btn-retrieve').style.display = p1.armed ? 'none' : 'inline-block';
+      if(!p1.armed) document.getElementById('btn-retrieve').innerText = `Retrieve (${p1.disarmTimer})`;
+    }
 
     const grid = document.getElementById('enemy-cards-container');
     enemies.forEach((e, idx) => {
@@ -976,8 +1008,9 @@ function startGame() {
       if(activeChar === e) card.style.setProperty('--active-color', e.color);
 
       if (e.hp <= 0) {
-        card.style.opacity = '0.4'; card.innerHTML = `<h3><img src="${e.avatar}" class="avatar" /> <span style="color:#777;">${e.name} [DEAD]</span></h3>`;
+        card.style.opacity = '0.4'; card.innerHTML = `<h3><img src="${e.avatar}" class="avatar" /> <span style="color:#777;">${e.name} [DEAD] ${tombstoneSvg}</span></h3>`;
       } else {
+        card.style.opacity = '1';
         card.innerHTML = `<h3><img src="${e.avatar}" class="avatar" /> <span style="color:${e.color}">${e.name}</span> <span class="hp">HP: ${e.hp}</span></h3>
           <div class="status-line">Status: ${getStatus(e)}</div>
           <div class="counter-line">Counters: Dodge (${e.spells.dodge}) | Mighty (${e.spells.mighty}) | Cure (${e.spells.cure}) | Bless (${e.spells.bless}) | Haste (${e.spells.haste})</div>`;
