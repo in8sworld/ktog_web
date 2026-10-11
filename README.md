@@ -9,6 +9,10 @@ KtOG is a simple dice-based combat game for 2 or more players created by Nate an
 
 ## Change Log
 
+### v261011083754
+* default hit points are determined by number of opponents selected, can be changed
+* reset game also resets default opponents and hit points selection
+
 ### v261011075405
 * FIX: number color should match player color, dice color background fixed
 * adds pop ups for player death and victory
