@@ -949,6 +949,7 @@ const updateLogFades = () => {
   let playerActionsLeft = 0;
 
   // Animate Dice with dynamic die background selection, established colors, and green glow when blessed
+  // retain player color for numbers
   async function animateDice(prefix, sides, finalValue, color = "#ffcc00", subtext = "", animType = "attack", isBlessed = false) {
     const dOverlay = document.getElementById('dice-anim-overlay');
     const valSpan = document.getElementById('dice-value');
@@ -964,23 +965,28 @@ const updateLogFades = () => {
     svgD6.style.display = 'none';
     svgD20.style.filter = 'none';
 
-    let resolvedColor = color;
+    let diceBgColor = '#ffcc00';
     if (sides === 20) {
       svgD20.style.display = 'block';
-      resolvedColor = '#ffcc00'; // Yellow for attack/d20
+      diceBgColor = '#ffcc00'; // Yellow for attack/d20
       if (isBlessed) {
         svgD20.style.filter = 'drop-shadow(0 0 15px #4af626) drop-shadow(0 0 35px #4af626) drop-shadow(0 0 60px #4af626)';
       }
     } else if (sides === 10) {
       svgD10.style.display = 'block';
-      resolvedColor = '#4af626'; // Green for cure/d10
+      diceBgColor = '#4af626'; // Green for cure/d10
     } else if (sides === 6 || sides === 12) {
       svgD6.style.display = 'block';
-      resolvedColor = '#ff4d4d'; // Red for damage/d6
+      diceBgColor = '#ff4d4d'; // Red for damage/d6
     }
 
     dOverlay.style.display = 'flex';
-    dOverlay.style.color = resolvedColor;
+    dOverlay.style.color = color; // Keeps the text numbers colored to the rolling player
+
+    // Apply the specific die background color to the SVGs separately
+    svgD20.style.color = diceBgColor;
+    svgD10.style.color = diceBgColor;
+    svgD6.style.color = diceBgColor;
 
     let shakeClass = (animType === 'disarm') ? 'shake-disarm' : 'shake-roll';
     let popClass = (animType === 'disarm') ? 'pop-disarm' : 'pop-result';
@@ -1061,7 +1067,8 @@ const initFighter = (color, startHp) => ({
     hp: startHp, maxHp: startHp, armed: true, disarmTimer: 0, blessed: false, color: color, avatar: '',
     spells: { cure: 1, bless: 1, haste: 2, dodge: 1, mighty: 1 },
     spellCastThisRound: false, // Enforces 1 spell per round logic
-    lastAttacker: null, strategy: getRandEl(['lowestHP', 'random', 'revenge'])
+    lastAttacker: null, strategy: getRandEl(['lowestHP', 'random', 'revenge']),
+    deathProcessed: false
 });
 
   const cName = (f) => `<span style="color:${f.color}; font-weight:bold;">${f.name}</span>`;
@@ -1247,7 +1254,7 @@ function startGame() {
   }
 
   async function advanceTurn() {
-    if (!gameActive || checkWin()) return;
+    if (!gameActive || await checkWin()) return;
     currentTurnIndex++;
     if (currentTurnIndex >= turnOrder.length) {
         currentTurnIndex = 0;
@@ -1279,7 +1286,7 @@ async function applyCure(caster) {
       rollStr += ` ➔ rerolled 1 ➔ [d10: ${d}]`;
     }
 
-    await animateDice('', 10, d, '#4af626', '', 'attack', false);
+    await animateDice('', 10, d, 'caster.color', '', 'attack', false);
     if (!gameActive) return;
 
     // Calculate actual healing ensuring it doesn't exceed maxHp
@@ -1319,6 +1326,9 @@ async function resolveFumble(attacker, isPunch) {
         attacker.hp -= selfDmg;
         playSound('hit');
         printLog(`> ${cName(attacker)} struck themself for <b>${selfDmg}</b> damage! [d20: ${selfHitRoll}]`);
+        if (attacker.isPlayer) {
+            await checkPlayerDeath();
+        }
     } else {
         printLog(`> ${cName(attacker)} avoided hitting themself. [d20: ${selfHitRoll}]`);
 
@@ -1383,7 +1393,7 @@ async function resolveAttack(attacker, defender, isPunch) {
     if (!gameActive) return;
 
 
-if (isFumble) {
+    if (isFumble) {
       await resolveFumble(attacker, isPunch);
     } else if (hitRoll >= req || isCrit) {
 
@@ -1431,7 +1441,7 @@ if (isFumble) {
           await new Promise(r => setTimeout(r, 800));
           if (!gameActive) return;
 
-          await animateDice('', 12, dmg, '#ff4d4d', '', 'attack', false);
+          await animateDice('', 12, dmg, 'attacker.color', '', 'attack', false);
           if (!gameActive) return;
         } else {
           playSound('hit');
@@ -1444,7 +1454,7 @@ if (isFumble) {
              rollText = `[d6: ${d1}]`;
           }
 
-          await animateDice('', 6, dmg, '#ff4d4d', '', 'attack', false);
+          await animateDice('', 6, dmg, 'attacker.color', '', 'attack', false);
           if (!gameActive) return;
         }
 
@@ -1456,6 +1466,9 @@ if (isFumble) {
 
         defender.hp -= dmg;
         printLog(`> Hit for <b>${dmg}</b> damage! <span style="color:#b8a990; font-size: 0.9em;">${rollText}</span>`);
+        if (defender.isPlayer) {
+            await checkPlayerDeath();
+        }
       }
     } else {
       playSound('miss');
@@ -1557,7 +1570,7 @@ if (action === 'cure') {
 
     if (!gameActive) return;
     playerActionsLeft--; updateUI();
-    if (checkWin()) return;
+    if (await checkWin()) return;
     if (playerActionsLeft > 0) { setButtonsEnabled(true); return; }
     await new Promise(r => setTimeout(r, 1200)); advanceTurn();
 }
@@ -1652,7 +1665,7 @@ if (action === 'cure') {
       if (!gameActive) return;
       acts--;
       updateUI();
-      if(checkWin()) return;
+      if(await checkWin()) return;
 
       if(acts > 0) {
         targets = turnOrder.filter(c => c.hp > 0 && c !== ai);
@@ -1662,17 +1675,46 @@ if (action === 'cure') {
     }
 }
 
-  function checkWin() {
+async function checkPlayerDeath() {
+    if (p1.hp <= 0 && !p1.deathProcessed) {
+        p1.deathProcessed = true;
+        let alive = turnOrder.filter(c => c.hp > 0);
+        if (alive.length === 1) {
+            await askUser("You have died!", true, "OK");
+        } else if (alive.length > 1) {
+            printLog(`<div style="margin-bottom: 16px;"><b style="color:#ff4d4d">*** You have died, but the fight continues! ***</b></div>`);
+            await askUser("You have died, but the fight continues!", true, "OK");
+        }
+    }
+}
+
+
+async function checkWin() {
     updateUI(); let alive = turnOrder.filter(c => c.hp > 0);
     if (alive.length === 1) {
-    let w = alive[0]; printLog(`<div style="margin-bottom: 16px;"><b style="color:${w.isPlayer ? '#4af626' : '#ff4d4d'}">*** ${w.isPlayer ? 'VICTORY! You survive the pit!' : `MATCH OVER! ${w.name} stands victorious.`} ***</b></div>`);
-      gameActive = false; setButtonsEnabled(false); return true;
+      let w = alive[0];
+      if (w.isPlayer) {
+        gameActive = false; setButtonsEnabled(false);
+        await askUser("VICTORY! You survive the pit!", true, "OK");
+      } else {
+        if (!p1.deathProcessed && p1.hp <= 0) {
+          p1.deathProcessed = true;
+          await askUser("You have died!", true, "OK");
+        } else if (p1.hp > 0) {
+          printLog(`<div style="margin-bottom: 16px;"><b style="color:#ff4d4d">*** MATCH OVER! ${w.name} stands victorious. ***</b></div>`);
+        }
+        gameActive = false; setButtonsEnabled(false);
+      }
+      return true;
     } else if (alive.length === 0) {
       printLog(`<div style="margin-bottom: 16px;"><b style="color:#ffaa00">DRAW! The pit claims you all.</b></div>`);
       gameActive = false; setButtonsEnabled(false); return true;
     }
     return false;
   }
+
+
+
 </script>
 
 <script>

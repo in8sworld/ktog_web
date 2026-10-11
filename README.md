@@ -9,6 +9,10 @@ KtOG is a simple dice-based combat game for 2 or more players created by Nate an
 
 ## Change Log
 
+### v261011075405
+* FIX: number color should match player color, dice color background fixed
+* adds pop ups for player death and victory
+
 ### v261010113630
 * applies a green glow to attacks that are enhanced by a Bless
 
