@@ -812,10 +812,10 @@ const sfx = {
 };
 
 // Add background music for the pit
-const pitBgm = new Audio('sounds/op-24-261016-single.ogg'); // Update with your audio file path
+const pitBgm = new Audio('sounds/op-24-261017b-single.ogg'); // Update with your audio file path
 pitBgm.loop = true;
 pitBgm.preload = 'auto';
-pitBgm.volume = 0.2; // Adjust volume as needed (0.0 to 1.0)
+pitBgm.volume = 0.3; // Adjust volume as needed (0.0 to 1.0)
 
 // Pre-load the audio so there is no delay on play
 Object.values(sfx).forEach(audio => audio.preload = 'auto');
