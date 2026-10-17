@@ -811,6 +811,12 @@ const sfx = {
     swing: new Audio('sounds/swing.ogg')
 };
 
+// Add background music for the pit
+const pitBgm = new Audio('sounds/op-24-261016-single.ogg'); // Update with your audio file path
+pitBgm.loop = true;
+pitBgm.preload = 'auto';
+pitBgm.volume = 0.2; // Adjust volume as needed (0.0 to 1.0)
+
 // Pre-load the audio so there is no delay on play
 Object.values(sfx).forEach(audio => audio.preload = 'auto');
 
@@ -1108,6 +1114,10 @@ const initFighter = (color, startHp) => ({
   }
 
 function startGame() {
+// Start looping background music on button click (satisfies browser autoplay policies)
+  pitBgm.currentTime = 0;
+  pitBgm.play().catch(err => console.warn("Background audio blocked:", err));
+
   const aiCount = parseInt(document.getElementById('ai-count').value);
   const startingHp = parseInt(document.getElementById('starting-hp').value);
 
@@ -1154,6 +1164,11 @@ function startGame() {
 }
 
   function resetGame() {
+  // Stop background music when resetting
+    pitBgm.pause();
+    pitBgm.currentTime = 0;
+
+
     gameActive = false;
     currentTurnIndex = -1;
     playerActionsLeft = 0;
